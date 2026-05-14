@@ -1,6 +1,6 @@
 # 枫叶计划
 
-一个本地离线的 Android 计划应用。当前支持日计划、月计划和年计划：可以记录每天、每月、每年的周期计划，也可以记录当日、当月、当年或任意日期范围内的规划。每次打卡都会保存具体时间和备注，并支持日夜主题切换。
+一个本地离线的 Android 计划应用。当前支持日计划、月计划、年计划和一言记录：可以记录周期计划、编辑 TODO 内容、保存每次打卡时间与备注，也可以随手写下一句话或灵感，并支持日夜主题切换。
 
 ## 文档
 
@@ -16,11 +16,11 @@
 Debug APK 会生成在：
 
 ```text
-app\build\outputs\apk\debug\Daily-0.5.1-YYYYMMDD.apk
+app\build\outputs\apk\debug\Daily-0.6.0-YYYYMMDD.apk
 ```
 
 同时会归档一份到本地目录，方便保留旧版安装包：
 
 ```text
-release-apks\Daily-0.5.1-YYYYMMDD.apk
+release-apks\Daily-0.6.0-YYYYMMDD.apk
 ```

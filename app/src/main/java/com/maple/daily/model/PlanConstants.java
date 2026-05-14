@@ -4,6 +4,7 @@ public final class PlanConstants {
     public static final String TYPE_DAILY = "daily";
     public static final String TYPE_MONTHLY = "monthly";
     public static final String TYPE_YEARLY = "yearly";
+    public static final String TYPE_QUICK_NOTE = "quick_note";
 
     public static final String MODE_DAILY_EVERY = "daily_every";
     public static final String MODE_DAILY_TODAY = "daily_today";

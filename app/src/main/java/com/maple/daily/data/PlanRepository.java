@@ -4,14 +4,15 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import com.maple.daily.model.CheckIn;
+import com.maple.daily.model.DailyData;
 import com.maple.daily.model.PlanItem;
+import com.maple.daily.model.QuickNote;
 import com.maple.daily.util.DateKeys;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static com.maple.daily.model.PlanConstants.MODE_DAILY_EVERY;
@@ -22,7 +23,7 @@ import static com.maple.daily.model.PlanConstants.TYPE_MONTHLY;
 import static com.maple.daily.model.PlanConstants.TYPE_YEARLY;
 
 public class PlanRepository {
-    public static final int CURRENT_SCHEMA_VERSION = 3;
+    public static final int CURRENT_SCHEMA_VERSION = 4;
 
     private static final String PREFS_NAME = "daily_maple_prefs";
     private static final String DATA_KEY = "daily_data";
@@ -34,25 +35,33 @@ public class PlanRepository {
         preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
     }
 
-    public List<PlanItem> loadPlans() {
-        List<PlanItem> plans = new ArrayList<>();
+    public DailyData loadData() {
+        DailyData data = new DailyData();
 
         String versionedRaw = preferences.getString(DATA_KEY, null);
-        if (versionedRaw != null && loadVersionedData(versionedRaw, plans)) {
-            return plans;
+        if (versionedRaw != null && loadVersionedData(versionedRaw, data)) {
+            return data;
         }
 
         String legacyRaw = preferences.getString(LEGACY_TODOS_KEY, null);
-        if (legacyRaw != null && loadLegacyTodos(legacyRaw, plans)) {
-            savePlans(plans);
-            return plans;
+        if (legacyRaw != null && loadLegacyTodos(legacyRaw, data.plans)) {
+            saveData(data.plans, data.quickNotes);
+            return data;
         }
 
-        savePlans(plans);
-        return plans;
+        saveData(data.plans, data.quickNotes);
+        return data;
+    }
+
+    public List<PlanItem> loadPlans() {
+        return loadData().plans;
     }
 
     public void savePlans(List<PlanItem> plans) {
+        saveData(plans, loadData().quickNotes);
+    }
+
+    public void saveData(List<PlanItem> plans, List<QuickNote> quickNotes) {
         JSONArray array = new JSONArray();
         for (PlanItem plan : plans) {
             JSONObject object = new JSONObject();
@@ -76,6 +85,7 @@ public class PlanRepository {
         try {
             data.put("schemaVersion", CURRENT_SCHEMA_VERSION);
             data.put("plans", array);
+            data.put("quickNotes", quickNotesToJson(quickNotes));
             preferences.edit()
                     .putString(DATA_KEY, data.toString())
                     .remove(LEGACY_TODOS_KEY)
@@ -84,7 +94,7 @@ public class PlanRepository {
         }
     }
 
-    private boolean loadVersionedData(String raw, List<PlanItem> plans) {
+    private boolean loadVersionedData(String raw, DailyData dailyData) {
         try {
             JSONObject data = new JSONObject(raw);
             int schemaVersion = data.optInt("schemaVersion", 0);
@@ -93,22 +103,27 @@ public class PlanRepository {
                 if (array == null) {
                     return false;
                 }
-                parsePlansArray(array, plans);
+                parsePlansArray(array, dailyData.plans);
+                JSONArray quickNotes = data.optJSONArray("quickNotes");
+                if (quickNotes != null) {
+                    parseQuickNotesArray(quickNotes, dailyData.quickNotes);
+                }
                 if (schemaVersion < CURRENT_SCHEMA_VERSION) {
-                    savePlans(plans);
+                    saveData(dailyData.plans, dailyData.quickNotes);
                 }
                 return true;
             }
 
             JSONArray oldTodos = data.optJSONArray("todos");
             if (oldTodos != null) {
-                parseLegacyTodosArray(oldTodos, plans);
-                savePlans(plans);
+                parseLegacyTodosArray(oldTodos, dailyData.plans);
+                saveData(dailyData.plans, dailyData.quickNotes);
                 return true;
             }
             return false;
         } catch (JSONException ignored) {
-            plans.clear();
+            dailyData.plans.clear();
+            dailyData.quickNotes.clear();
             return false;
         }
     }
@@ -201,6 +216,33 @@ public class PlanRepository {
             object.put("checkedAt", checkIn.checkedAt);
             object.put("note", checkIn.note);
             object.put("checkedAtMillis", checkIn.checkedAtMillis);
+            array.put(object);
+        }
+        return array;
+    }
+
+    private void parseQuickNotesArray(JSONArray array, List<QuickNote> quickNotes) throws JSONException {
+        for (int i = 0; i < array.length(); i++) {
+            JSONObject object = array.getJSONObject(i);
+            QuickNote note = new QuickNote();
+            note.id = object.optString("id", String.valueOf(System.currentTimeMillis() + i));
+            note.content = object.optString("content", "");
+            note.createdAt = object.optLong("createdAt", System.currentTimeMillis());
+            note.createdAtText = object.optString("createdAtText", "");
+            if (!note.content.trim().isEmpty()) {
+                quickNotes.add(note);
+            }
+        }
+    }
+
+    private JSONArray quickNotesToJson(List<QuickNote> quickNotes) throws JSONException {
+        JSONArray array = new JSONArray();
+        for (QuickNote note : quickNotes) {
+            JSONObject object = new JSONObject();
+            object.put("id", note.id);
+            object.put("content", note.content);
+            object.put("createdAt", note.createdAt);
+            object.put("createdAtText", note.createdAtText);
             array.put(object);
         }
         return array;

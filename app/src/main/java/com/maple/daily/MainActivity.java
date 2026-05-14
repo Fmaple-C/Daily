@@ -29,7 +29,9 @@ import com.maple.daily.data.PlanRepository;
 import com.maple.daily.data.ThemePreferences;
 import com.maple.daily.domain.PlanRules;
 import com.maple.daily.model.CheckIn;
+import com.maple.daily.model.DailyData;
 import com.maple.daily.model.PlanItem;
+import com.maple.daily.model.QuickNote;
 import com.maple.daily.util.DateKeys;
 
 import java.util.ArrayList;
@@ -48,6 +50,7 @@ import static com.maple.daily.model.PlanConstants.MODE_YEARLY_EVERY;
 import static com.maple.daily.model.PlanConstants.MODE_YEARLY_THIS;
 import static com.maple.daily.model.PlanConstants.TYPE_DAILY;
 import static com.maple.daily.model.PlanConstants.TYPE_MONTHLY;
+import static com.maple.daily.model.PlanConstants.TYPE_QUICK_NOTE;
 import static com.maple.daily.model.PlanConstants.TYPE_YEARLY;
 
 public class MainActivity extends Activity {
@@ -77,6 +80,7 @@ public class MainActivity extends Activity {
     private int COLOR_DONE_BORDER;
 
     private final List<PlanItem> plans = new ArrayList<>();
+    private final List<QuickNote> quickNotes = new ArrayList<>();
     private final Set<String> expandedPlanIds = new HashSet<>();
     private final Handler midnightHandler = new Handler(Looper.getMainLooper());
     private final Runnable midnightRefresh = new Runnable() {
@@ -115,6 +119,9 @@ public class MainActivity extends Activity {
     private boolean isCreatePanelVisible = false;
     private boolean isNightTheme = false;
     private PlanItem historyPlan = null;
+    private PlanItem editingPlan = null;
+    private String formTitleDraft = "";
+    private String formNoteDraft = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -261,6 +268,7 @@ public class MainActivity extends Activity {
         themeButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                captureFormDraft();
                 isNightTheme = !isNightTheme;
                 themePreferences.setNightTheme(isNightTheme);
                 applyThemeColors();
@@ -278,9 +286,17 @@ public class MainActivity extends Activity {
         createButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                isCreatePanelVisible = !isCreatePanelVisible;
-                buildCreatePanel();
-                updateCreateButton();
+                if (isCreatePanelVisible) {
+                    editingPlan = null;
+                    resetCreateForm();
+                    isCreatePanelVisible = false;
+                } else {
+                    editingPlan = null;
+                    resetCreateForm();
+                    isCreatePanelVisible = true;
+                }
+                renderHeaderAndForm();
+                renderPlans();
             }
         });
         titleRow.addView(createButton, new LinearLayout.LayoutParams(dp(82), dp(42)));
@@ -360,6 +376,14 @@ public class MainActivity extends Activity {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 1f
         ));
+
+        addHorizontalSpace(railContainer, 4);
+
+        railContainer.addView(navButton("一言", TYPE_QUICK_NOTE), new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                1f
+        ));
     }
 
     private Button navButton(String text, final String type) {
@@ -380,6 +404,7 @@ public class MainActivity extends Activity {
             public void onClick(View view) {
                 if (!activePlanType.equals(type)) {
                     activePlanType = type;
+                    editingPlan = null;
                     resetCreateForm();
                     isCreatePanelVisible = false;
                     renderNavigation();
@@ -407,9 +432,16 @@ public class MainActivity extends Activity {
         } else if (TYPE_MONTHLY.equals(activePlanType)) {
             screenTitle.setText("月计划");
             screenSubtitle.setText("记录每月、当月或一段日期内的规划。");
-        } else {
+        } else if (TYPE_YEARLY.equals(activePlanType)) {
             screenTitle.setText("年计划");
             screenSubtitle.setText("记录每年、当年或一段日期内的长期目标。");
+        } else {
+            screenTitle.setText("一言");
+            screenSubtitle.setText("随时写下一句话、灵感、想法或生活片段。");
+        }
+
+        if (editingPlan != null) {
+            screenSubtitle.setText("正在编辑：" + editingPlan.title);
         }
         updateHeaderButtons();
         buildCreatePanel();
@@ -433,7 +465,13 @@ public class MainActivity extends Activity {
         if (createButton == null) {
             return;
         }
-        createButton.setText(isCreatePanelVisible ? "收起" : "新建");
+        if (editingPlan != null) {
+            createButton.setText("取消");
+        } else if (TYPE_QUICK_NOTE.equals(activePlanType)) {
+            createButton.setText(isCreatePanelVisible ? "收起" : "记录");
+        } else {
+            createButton.setText(isCreatePanelVisible ? "收起" : "新建");
+        }
         createButton.setTextColor(isCreatePanelVisible ? COLOR_PRIMARY_DARK : Color.WHITE);
         createButton.setBackground(rounded(
                 isCreatePanelVisible ? COLOR_CONTROL_BG : COLOR_PRIMARY,
@@ -458,7 +496,10 @@ public class MainActivity extends Activity {
         if (TYPE_MONTHLY.equals(activePlanType)) {
             return "月计划";
         }
-        return "年计划";
+        if (TYPE_YEARLY.equals(activePlanType)) {
+            return "年计划";
+        }
+        return "一言";
     }
 
     private String titleHint() {
@@ -468,7 +509,10 @@ public class MainActivity extends Activity {
         if (TYPE_MONTHLY.equals(activePlanType)) {
             return "例如：每月规划";
         }
-        return "例如：年度成长计划";
+        if (TYPE_YEARLY.equals(activePlanType)) {
+            return "例如：年度成长计划";
+        }
+        return "例如：今天想到的一句话";
     }
 
     private String noteHint() {
@@ -478,12 +522,20 @@ public class MainActivity extends Activity {
         if (TYPE_MONTHLY.equals(activePlanType)) {
             return "备注，例如：\n1. internal本\n   1. 运用 ai 学习 java\n2. 理财本";
         }
-        return "备注，例如：\n1. 技术主线\n   1. Java 深入\n   2. 项目上线\n2. 健康主线\n   1. 稳定锻炼";
+        if (TYPE_YEARLY.equals(activePlanType)) {
+            return "备注，例如：\n1. 技术主线\n   1. Java 深入\n   2. 项目上线\n2. 健康主线\n   1. 稳定锻炼";
+        }
+        return "写下一句话、灵感、今天发生的小事...";
     }
 
     private void buildCreatePanel() {
         formContainer.removeAllViews();
         if (!isCreatePanelVisible) {
+            return;
+        }
+
+        if (TYPE_QUICK_NOTE.equals(activePlanType)) {
+            buildQuickNotePanel();
             return;
         }
 
@@ -494,7 +546,7 @@ public class MainActivity extends Activity {
         formContainer.addView(panel);
 
         TextView panelTitle = new TextView(this);
-        panelTitle.setText("新建" + activePlanName());
+        panelTitle.setText(editingPlan == null ? "新建" + activePlanName() : "编辑" + activePlanName());
         panelTitle.setTextColor(COLOR_TEXT);
         panelTitle.setTypeface(Typeface.DEFAULT_BOLD);
         panelTitle.setTextSize(17);
@@ -509,6 +561,7 @@ public class MainActivity extends Activity {
         titleInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         titleInput.setBackgroundColor(Color.TRANSPARENT);
         titleInput.setPadding(0, dp(10), 0, dp(8));
+        titleInput.setText(formTitleDraft);
         panel.addView(titleInput);
 
         noteInput = new EditText(this);
@@ -521,6 +574,7 @@ public class MainActivity extends Activity {
         noteInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         noteInput.setBackground(rounded(COLOR_FIELD_BG, COLOR_BORDER, 8));
         noteInput.setPadding(dp(10), dp(8), dp(10), dp(8));
+        noteInput.setText(formNoteDraft);
         panel.addView(noteInput, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(112)
@@ -540,6 +594,7 @@ public class MainActivity extends Activity {
             deadlineButton.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
+                    captureFormDraft();
                     pickTime(selectedDeadlineMinutes, new TimeSelectedCallback() {
                         @Override
                         public void onTimeSelected(int minutes) {
@@ -558,7 +613,7 @@ public class MainActivity extends Activity {
         addVerticalSpace(panel, 10);
         Button addButton = new Button(this);
         addButton.setAllCaps(false);
-        addButton.setText("添加" + activePlanName());
+        addButton.setText(editingPlan == null ? "添加" + activePlanName() : "保存修改");
         addButton.setTextColor(Color.WHITE);
         addButton.setTextSize(15);
         addButton.setTypeface(Typeface.DEFAULT_BOLD);
@@ -566,10 +621,62 @@ public class MainActivity extends Activity {
         addButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                addPlan();
+                submitPlanForm();
             }
         });
         panel.addView(addButton, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(46)
+        ));
+    }
+
+    private void buildQuickNotePanel() {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(14), dp(12), dp(14), dp(14));
+        panel.setBackground(rounded(COLOR_SURFACE, COLOR_BORDER, 8));
+        formContainer.addView(panel);
+
+        TextView panelTitle = new TextView(this);
+        panelTitle.setText("写一言");
+        panelTitle.setTextColor(COLOR_TEXT);
+        panelTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        panelTitle.setTextSize(17);
+        panel.addView(panelTitle);
+
+        noteInput = new EditText(this);
+        noteInput.setHint(noteHint());
+        noteInput.setMinLines(4);
+        noteInput.setGravity(Gravity.TOP);
+        noteInput.setTextColor(COLOR_TEXT);
+        noteInput.setHintTextColor(COLOR_HINT);
+        noteInput.setTextSize(15);
+        noteInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        noteInput.setBackground(rounded(COLOR_FIELD_BG, COLOR_BORDER, 8));
+        noteInput.setPadding(dp(10), dp(8), dp(10), dp(8));
+        noteInput.setText(formNoteDraft);
+        LinearLayout.LayoutParams inputParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(120)
+        );
+        inputParams.setMargins(0, dp(10), 0, 0);
+        panel.addView(noteInput, inputParams);
+
+        addVerticalSpace(panel, 10);
+        Button saveButton = new Button(this);
+        saveButton.setAllCaps(false);
+        saveButton.setText("保存一言");
+        saveButton.setTextColor(Color.WHITE);
+        saveButton.setTextSize(15);
+        saveButton.setTypeface(Typeface.DEFAULT_BOLD);
+        saveButton.setBackground(rounded(COLOR_PRIMARY, COLOR_PRIMARY, 8));
+        saveButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                addQuickNote();
+            }
+        });
+        panel.addView(saveButton, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(46)
         ));
@@ -609,7 +716,10 @@ public class MainActivity extends Activity {
         if (TYPE_MONTHLY.equals(activePlanType)) {
             return MODE_MONTHLY_EVERY;
         }
-        return MODE_YEARLY_EVERY;
+        if (TYPE_YEARLY.equals(activePlanType)) {
+            return MODE_YEARLY_EVERY;
+        }
+        return MODE_DAILY_EVERY;
     }
 
     private String currentModeLabel() {
@@ -629,7 +739,10 @@ public class MainActivity extends Activity {
         if (TYPE_MONTHLY.equals(activePlanType)) {
             return MODE_MONTHLY_THIS;
         }
-        return MODE_YEARLY_THIS;
+        if (TYPE_YEARLY.equals(activePlanType)) {
+            return MODE_YEARLY_THIS;
+        }
+        return MODE_DAILY_TODAY;
     }
 
     private Button modeButton(String text, final String mode) {
@@ -648,6 +761,7 @@ public class MainActivity extends Activity {
         button.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                captureFormDraft();
                 selectedMode = mode;
                 if (MODE_RANGE.equals(mode) && selectedStartDate.isEmpty()) {
                     selectedStartDate = todayKey();
@@ -668,6 +782,7 @@ public class MainActivity extends Activity {
         startDateButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                captureFormDraft();
                 pickDate(selectedStartDate, new DateSelectedCallback() {
                     @Override
                     public void onDateSelected(String dateKey) {
@@ -688,6 +803,7 @@ public class MainActivity extends Activity {
         endDateButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                captureFormDraft();
                 pickDate(selectedEndDate, new DateSelectedCallback() {
                     @Override
                     public void onDateSelected(String dateKey) {
@@ -711,6 +827,11 @@ public class MainActivity extends Activity {
 
         if (historyPlan != null) {
             renderHistoryPage();
+            return;
+        }
+
+        if (TYPE_QUICK_NOTE.equals(activePlanType)) {
+            renderQuickNotes();
             return;
         }
 
@@ -773,7 +894,7 @@ public class MainActivity extends Activity {
         empty.setBackground(rounded(COLOR_FIELD_BG, COLOR_BORDER, 8));
 
         TextView mark = new TextView(this);
-        mark.setText(TYPE_DAILY.equals(activePlanType) ? "日" : (TYPE_MONTHLY.equals(activePlanType) ? "月" : "年"));
+        mark.setText(emptyMarkText());
         mark.setTextSize(28);
         mark.setTypeface(Typeface.DEFAULT_BOLD);
         mark.setTextColor(COLOR_PRIMARY);
@@ -781,12 +902,124 @@ public class MainActivity extends Activity {
         empty.addView(mark);
 
         TextView text = new TextView(this);
-        text.setText("先添加一个" + activePlanName());
+        text.setText(TYPE_QUICK_NOTE.equals(activePlanType) ? "先记录一句一言" : "先添加一个" + activePlanName());
         text.setTextColor(COLOR_MUTED);
         text.setTextSize(15);
         text.setPadding(0, dp(8), 0, 0);
         empty.addView(text);
         return empty;
+    }
+
+    private String emptyMarkText() {
+        if (TYPE_DAILY.equals(activePlanType)) {
+            return "日";
+        }
+        if (TYPE_MONTHLY.equals(activePlanType)) {
+            return "月";
+        }
+        if (TYPE_YEARLY.equals(activePlanType)) {
+            return "年";
+        }
+        return "言";
+    }
+
+    private void renderQuickNotes() {
+        listContainer.removeAllViews();
+        summaryText.setText("共 " + quickNotes.size() + " 条记录，最新想法会显示在最上方");
+
+        if (quickNotes.isEmpty()) {
+            listContainer.addView(buildEmptyState());
+            return;
+        }
+
+        for (int i = 0; i < quickNotes.size(); i++) {
+            listContainer.addView(buildQuickNoteCard(quickNotes.get(i), quickNotes.size() - i));
+            addVerticalSpace(listContainer, 10);
+        }
+    }
+
+    private View buildQuickNoteCard(final QuickNote quickNote, int displayIndex) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackground(rounded(COLOR_SURFACE, COLOR_BORDER, 8));
+
+        LinearLayout topRow = new LinearLayout(this);
+        topRow.setOrientation(LinearLayout.HORIZONTAL);
+        topRow.setGravity(Gravity.CENTER_VERTICAL);
+        card.addView(topRow);
+
+        TextView mark = new TextView(this);
+        mark.setText("言");
+        mark.setGravity(Gravity.CENTER);
+        mark.setTextColor(Color.WHITE);
+        mark.setTypeface(Typeface.DEFAULT_BOLD);
+        mark.setTextSize(14);
+        mark.setBackground(circle(COLOR_PRIMARY, COLOR_PRIMARY));
+        topRow.addView(mark, new LinearLayout.LayoutParams(dp(30), dp(30)));
+
+        TextView title = new TextView(this);
+        title.setText("第 " + displayIndex + " 条一言");
+        title.setTextColor(COLOR_PRIMARY_DARK);
+        title.setTextSize(14);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setPadding(dp(12), 0, 0, 0);
+        topRow.addView(title, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView time = new TextView(this);
+        time.setText(quickNoteTimeText(quickNote));
+        time.setTextColor(COLOR_MUTED);
+        time.setTextSize(12);
+        topRow.addView(time);
+
+        TextView content = new TextView(this);
+        content.setText(quickNote.content);
+        content.setTextColor(COLOR_TEXT);
+        content.setTextSize(16);
+        content.setLineSpacing(dp(3), 1.0f);
+        content.setPadding(dp(12), dp(12), dp(12), dp(12));
+        content.setBackground(rounded(COLOR_FIELD_BG, COLOR_BORDER, 8));
+        LinearLayout.LayoutParams contentParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        contentParams.setMargins(0, dp(10), 0, 0);
+        card.addView(content, contentParams);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        actionsParams.setMargins(0, dp(10), 0, 0);
+        card.addView(actions, actionsParams);
+
+        Button deleteButton = secondaryButton("删除");
+        deleteButton.setTextColor(COLOR_DANGER);
+        deleteButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                confirmDeleteQuickNote(quickNote);
+            }
+        });
+        actions.addView(deleteButton, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(40)
+        ));
+
+        return card;
+    }
+
+    private String quickNoteTimeText(QuickNote quickNote) {
+        if (quickNote.createdAtText != null && !quickNote.createdAtText.isEmpty()) {
+            return quickNote.createdAtText;
+        }
+        if (quickNote.createdAt > 0L) {
+            return formatDateTime(new Date(quickNote.createdAt));
+        }
+        return "";
     }
 
     private View buildPlanCard(final PlanItem plan) {
@@ -884,10 +1117,13 @@ public class MainActivity extends Activity {
             addVerticalSpace(card, 10);
         }
 
-        LinearLayout actions = new LinearLayout(this);
-        actions.setOrientation(LinearLayout.HORIZONTAL);
-        actions.setGravity(Gravity.CENTER_VERTICAL);
-        card.addView(actions);
+        LinearLayout primaryActions = new LinearLayout(this);
+        primaryActions.setOrientation(LinearLayout.HORIZONTAL);
+        primaryActions.setGravity(Gravity.CENTER_VERTICAL);
+        card.addView(primaryActions, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
 
         Button checkButton = secondaryButton(checkButtonText(plan, checked, overdue, active));
         checkButton.setEnabled(active);
@@ -901,10 +1137,39 @@ public class MainActivity extends Activity {
                 promptCheckInNote(plan);
             }
         });
-        actions.addView(checkButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        primaryActions.addView(checkButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+
+        addHorizontalSpace(primaryActions, 8);
+        Button editButton = secondaryButton("编辑");
+        editButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                openEditPlan(plan);
+            }
+        });
+        primaryActions.addView(editButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+
+        addHorizontalSpace(primaryActions, 8);
+        Button historyButton = secondaryButton("历史");
+        historyButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                openHistoryPage(plan);
+            }
+        });
+        primaryActions.addView(historyButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+
+        addVerticalSpace(card, 8);
+
+        LinearLayout secondaryActions = new LinearLayout(this);
+        secondaryActions.setOrientation(LinearLayout.HORIZONTAL);
+        secondaryActions.setGravity(Gravity.CENTER_VERTICAL);
+        card.addView(secondaryActions, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
 
         if (TYPE_DAILY.equals(plan.type)) {
-            addHorizontalSpace(actions, 8);
             Button timeButton = secondaryButton("改时间");
             timeButton.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -919,20 +1184,10 @@ public class MainActivity extends Activity {
                     });
                 }
             });
-            actions.addView(timeButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+            secondaryActions.addView(timeButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+            addHorizontalSpace(secondaryActions, 8);
         }
 
-        addHorizontalSpace(actions, 8);
-        Button historyButton = secondaryButton("历史");
-        historyButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                openHistoryPage(plan);
-            }
-        });
-        actions.addView(historyButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
-
-        addHorizontalSpace(actions, 8);
         Button deleteButton = secondaryButton("删除");
         deleteButton.setTextColor(COLOR_DANGER);
         deleteButton.setOnClickListener(new View.OnClickListener() {
@@ -941,7 +1196,7 @@ public class MainActivity extends Activity {
                 confirmDelete(plan);
             }
         });
-        actions.addView(deleteButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        secondaryActions.addView(deleteButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
 
         return card;
     }
@@ -1050,7 +1305,9 @@ public class MainActivity extends Activity {
 
     private void openHistoryPage(PlanItem plan) {
         historyPlan = plan;
+        editingPlan = null;
         isCreatePanelVisible = false;
+        resetCreateForm();
         renderNavigation();
         renderHeaderAndForm();
         renderHistoryPage();
@@ -1181,7 +1438,7 @@ public class MainActivity extends Activity {
         return panel;
     }
 
-    private void addPlan() {
+    private void submitPlanForm() {
         String title = titleInput.getText().toString().trim();
         if (title.isEmpty()) {
             titleInput.setError("写一个计划名称");
@@ -1189,14 +1446,16 @@ public class MainActivity extends Activity {
             return;
         }
 
-        PlanItem plan = new PlanItem();
-        plan.id = String.valueOf(System.currentTimeMillis());
+        PlanItem plan = editingPlan == null ? new PlanItem() : editingPlan;
+        if (editingPlan == null) {
+            plan.id = String.valueOf(System.currentTimeMillis());
+            plan.createdAt = System.currentTimeMillis();
+        }
         plan.type = activePlanType;
         plan.title = title;
         plan.note = noteInput.getText().toString().trim();
         plan.scheduleMode = selectedMode;
         plan.deadlineMinutes = TYPE_DAILY.equals(activePlanType) ? selectedDeadlineMinutes : 0;
-        plan.createdAt = System.currentTimeMillis();
 
         applySelectedRange(plan);
         if (MODE_RANGE.equals(plan.scheduleMode) && plan.endDate.compareTo(plan.startDate) < 0) {
@@ -1204,9 +1463,61 @@ public class MainActivity extends Activity {
             return;
         }
 
-        plans.add(0, plan);
+        if (editingPlan == null) {
+            plans.add(0, plan);
+        }
         savePlans();
         hideKeyboard(titleInput);
+        editingPlan = null;
+        resetCreateForm();
+        isCreatePanelVisible = false;
+        renderHeaderAndForm();
+        renderNavigation();
+        renderPlans();
+    }
+
+    private void openEditPlan(PlanItem plan) {
+        historyPlan = null;
+        editingPlan = plan;
+        activePlanType = plan.type;
+        selectedMode = plan.scheduleMode;
+        selectedDeadlineMinutes = plan.deadlineMinutes > 0 ? plan.deadlineMinutes : 12 * 60;
+        selectedStartDate = plan.startDate;
+        selectedEndDate = plan.endDate;
+        formTitleDraft = plan.title;
+        formNoteDraft = plan.note;
+        isCreatePanelVisible = true;
+        renderNavigation();
+        renderHeaderAndForm();
+        renderPlans();
+    }
+
+    private void captureFormDraft() {
+        if (titleInput != null) {
+            formTitleDraft = titleInput.getText().toString();
+        }
+        if (noteInput != null) {
+            formNoteDraft = noteInput.getText().toString();
+        }
+    }
+
+    private void addQuickNote() {
+        String content = noteInput.getText().toString().trim();
+        if (content.isEmpty()) {
+            noteInput.setError("写下一句话");
+            noteInput.requestFocus();
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        QuickNote quickNote = new QuickNote();
+        quickNote.id = "note-" + now;
+        quickNote.content = content;
+        quickNote.createdAt = now;
+        quickNote.createdAtText = formatDateTime(new Date(now));
+        quickNotes.add(0, quickNote);
+        savePlans();
+        hideKeyboard(noteInput);
         resetCreateForm();
         isCreatePanelVisible = false;
         renderHeaderAndForm();
@@ -1248,6 +1559,8 @@ public class MainActivity extends Activity {
         selectedDeadlineMinutes = 12 * 60;
         selectedStartDate = "";
         selectedEndDate = "";
+        formTitleDraft = "";
+        formNoteDraft = "";
     }
 
     private void promptCheckInNote(final PlanItem plan) {
@@ -1301,9 +1614,27 @@ public class MainActivity extends Activity {
                     if (historyPlan == plan) {
                         historyPlan = null;
                     }
+                    if (editingPlan == plan) {
+                        editingPlan = null;
+                        resetCreateForm();
+                        isCreatePanelVisible = false;
+                    }
                     savePlans();
                     renderHeaderAndForm();
                     renderNavigation();
+                    renderPlans();
+                })
+                .show();
+    }
+
+    private void confirmDeleteQuickNote(final QuickNote quickNote) {
+        new AlertDialog.Builder(this)
+                .setTitle("删除一言")
+                .setMessage("确定删除这条记录吗？")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("删除", (dialog, which) -> {
+                    quickNotes.remove(quickNote);
+                    savePlans();
                     renderPlans();
                 })
                 .show();
@@ -1405,11 +1736,14 @@ public class MainActivity extends Activity {
 
     private void loadPlans() {
         plans.clear();
-        plans.addAll(repository.loadPlans());
+        quickNotes.clear();
+        DailyData data = repository.loadData();
+        plans.addAll(data.plans);
+        quickNotes.addAll(data.quickNotes);
     }
 
     private void savePlans() {
-        repository.savePlans(plans);
+        repository.saveData(plans, quickNotes);
     }
 
     private void scheduleMidnightRefresh() {
