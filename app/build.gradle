@@ -10,8 +10,8 @@ android {
         applicationId 'com.maple.daily'
         minSdk 23
         targetSdk 34
-        versionCode 6
-        versionName '0.5.0'
+        versionCode 7
+        versionName '0.5.1'
     }
 
     compileOptions {
@@ -23,7 +23,23 @@ android {
 def buildDate = new Date().format('yyyyMMdd')
 
 android.applicationVariants.configureEach { variant ->
+    def apkFileName = "Daily-${variant.versionName}-${buildDate}.apk"
+
     variant.outputs.configureEach {
-        outputFileName = "Daily-${variant.versionName}-${buildDate}.apk"
+        outputFileName = apkFileName
+    }
+
+    if (variant.name == 'debug') {
+        def archiveTaskName = "archive${variant.name.capitalize()}Apk"
+        tasks.register(archiveTaskName, Copy) {
+            from("${buildDir}/outputs/apk/${variant.name}") {
+                include apkFileName
+            }
+            into("${rootDir}/release-apks")
+        }
+
+        tasks.named("assemble${variant.name.capitalize()}").configure {
+            finalizedBy archiveTaskName
+        }
     }
 }

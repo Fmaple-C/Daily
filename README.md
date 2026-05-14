@@ -16,5 +16,11 @@
 Debug APK 会生成在：
 
 ```text
-app\build\outputs\apk\debug\Daily-0.5.0-YYYYMMDD.apk
+app\build\outputs\apk\debug\Daily-0.5.1-YYYYMMDD.apk
+```
+
+同时会归档一份到本地目录，方便保留旧版安装包：
+
+```text
+release-apks\Daily-0.5.1-YYYYMMDD.apk
 ```
