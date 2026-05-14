@@ -1,0 +1,1501 @@
+package com.maple.daily;
+
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.DatePickerDialog;
+import android.app.TimePickerDialog;
+import android.content.Context;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.InputType;
+import android.view.Gravity;
+import android.view.View;
+import android.view.Window;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.Button;
+import android.widget.DatePicker;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.Space;
+import android.widget.TextView;
+import android.widget.TimePicker;
+
+import com.maple.daily.data.PlanRepository;
+import com.maple.daily.data.ThemePreferences;
+import com.maple.daily.domain.PlanRules;
+import com.maple.daily.model.CheckIn;
+import com.maple.daily.model.PlanItem;
+import com.maple.daily.util.DateKeys;
+
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import static com.maple.daily.model.PlanConstants.MODE_DAILY_EVERY;
+import static com.maple.daily.model.PlanConstants.MODE_DAILY_TODAY;
+import static com.maple.daily.model.PlanConstants.MODE_MONTHLY_EVERY;
+import static com.maple.daily.model.PlanConstants.MODE_MONTHLY_THIS;
+import static com.maple.daily.model.PlanConstants.MODE_RANGE;
+import static com.maple.daily.model.PlanConstants.MODE_YEARLY_EVERY;
+import static com.maple.daily.model.PlanConstants.MODE_YEARLY_THIS;
+import static com.maple.daily.model.PlanConstants.TYPE_DAILY;
+import static com.maple.daily.model.PlanConstants.TYPE_MONTHLY;
+import static com.maple.daily.model.PlanConstants.TYPE_YEARLY;
+
+public class MainActivity extends Activity {
+
+    private int COLOR_BG;
+    private int COLOR_SURFACE;
+    private int COLOR_RAIL;
+    private int COLOR_PRIMARY;
+    private int COLOR_PRIMARY_DARK;
+    private int COLOR_LEAF;
+    private int COLOR_TEXT;
+    private int COLOR_MUTED;
+    private int COLOR_BORDER;
+    private int COLOR_SUCCESS;
+    private int COLOR_DANGER;
+    private int COLOR_DISABLED;
+    private int COLOR_CONTROL_BG;
+    private int COLOR_FIELD_BG;
+    private int COLOR_HINT;
+    private int COLOR_SUCCESS_BG;
+    private int COLOR_SUCCESS_BORDER;
+    private int COLOR_DANGER_BG;
+    private int COLOR_DANGER_BORDER;
+    private int COLOR_PENDING_BG;
+    private int COLOR_PENDING_BORDER;
+    private int COLOR_INACTIVE_BG;
+    private int COLOR_DONE_BORDER;
+
+    private final List<PlanItem> plans = new ArrayList<>();
+    private final Set<String> expandedPlanIds = new HashSet<>();
+    private final Handler midnightHandler = new Handler(Looper.getMainLooper());
+    private final Runnable midnightRefresh = new Runnable() {
+        @Override
+        public void run() {
+            renderPlans();
+            scheduleMidnightRefresh();
+        }
+    };
+
+    private PlanRepository repository;
+    private ThemePreferences themePreferences;
+    private LinearLayout railContainer;
+    private LinearLayout formContainer;
+    private LinearLayout listContainer;
+    private TextView screenTitle;
+    private TextView screenSubtitle;
+    private TextView summaryText;
+    private Button backButton;
+    private Button createButton;
+    private Button themeButton;
+    private EditText titleInput;
+    private EditText noteInput;
+    private Button deadlineButton;
+    private Button startDateButton;
+    private Button endDateButton;
+    private Button everyModeButton;
+    private Button currentModeButton;
+    private Button rangeModeButton;
+
+    private String activePlanType = TYPE_DAILY;
+    private String selectedMode = MODE_DAILY_EVERY;
+    private int selectedDeadlineMinutes = 12 * 60;
+    private String selectedStartDate = "";
+    private String selectedEndDate = "";
+    private boolean isCreatePanelVisible = false;
+    private boolean isNightTheme = false;
+    private PlanItem historyPlan = null;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        repository = new PlanRepository(this);
+        themePreferences = new ThemePreferences(this);
+        isNightTheme = themePreferences.isNightTheme();
+        applyThemeColors();
+        loadPlans();
+        buildUi();
+        scheduleMidnightRefresh();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        renderPlans();
+        scheduleMidnightRefresh();
+    }
+
+    @Override
+    protected void onDestroy() {
+        midnightHandler.removeCallbacks(midnightRefresh);
+        super.onDestroy();
+    }
+
+    private void applyThemeColors() {
+        if (isNightTheme) {
+            COLOR_BG = Color.rgb(30, 24, 20);
+            COLOR_SURFACE = Color.rgb(43, 34, 28);
+            COLOR_RAIL = Color.rgb(54, 39, 30);
+            COLOR_PRIMARY = Color.rgb(255, 138, 61);
+            COLOR_PRIMARY_DARK = Color.rgb(255, 188, 128);
+            COLOR_LEAF = Color.rgb(255, 156, 74);
+            COLOR_TEXT = Color.rgb(250, 238, 228);
+            COLOR_MUTED = Color.rgb(204, 172, 151);
+            COLOR_BORDER = Color.rgb(100, 72, 56);
+            COLOR_SUCCESS = Color.rgb(116, 205, 128);
+            COLOR_DANGER = Color.rgb(255, 139, 112);
+            COLOR_DISABLED = Color.rgb(139, 116, 103);
+            COLOR_CONTROL_BG = Color.rgb(50, 39, 32);
+            COLOR_FIELD_BG = Color.rgb(37, 29, 24);
+            COLOR_HINT = Color.rgb(152, 123, 106);
+            COLOR_SUCCESS_BG = Color.rgb(33, 67, 39);
+            COLOR_SUCCESS_BORDER = Color.rgb(70, 126, 76);
+            COLOR_DANGER_BG = Color.rgb(78, 39, 33);
+            COLOR_DANGER_BORDER = Color.rgb(136, 75, 61);
+            COLOR_PENDING_BG = Color.rgb(69, 48, 33);
+            COLOR_PENDING_BORDER = Color.rgb(122, 79, 47);
+            COLOR_INACTIVE_BG = Color.rgb(47, 38, 33);
+            COLOR_DONE_BORDER = Color.rgb(83, 137, 89);
+        } else {
+            COLOR_BG = Color.rgb(255, 248, 242);
+            COLOR_SURFACE = Color.WHITE;
+            COLOR_RAIL = Color.rgb(255, 241, 229);
+            COLOR_PRIMARY = Color.rgb(216, 107, 31);
+            COLOR_PRIMARY_DARK = Color.rgb(135, 61, 15);
+            COLOR_LEAF = Color.rgb(242, 126, 33);
+            COLOR_TEXT = Color.rgb(45, 34, 27);
+            COLOR_MUTED = Color.rgb(122, 98, 83);
+            COLOR_BORDER = Color.rgb(242, 218, 198);
+            COLOR_SUCCESS = Color.rgb(46, 125, 50);
+            COLOR_DANGER = Color.rgb(183, 65, 42);
+            COLOR_DISABLED = Color.rgb(180, 160, 147);
+            COLOR_CONTROL_BG = Color.rgb(255, 249, 244);
+            COLOR_FIELD_BG = Color.rgb(255, 252, 248);
+            COLOR_HINT = Color.rgb(169, 142, 126);
+            COLOR_SUCCESS_BG = Color.rgb(232, 247, 233);
+            COLOR_SUCCESS_BORDER = Color.rgb(198, 226, 200);
+            COLOR_DANGER_BG = Color.rgb(255, 238, 233);
+            COLOR_DANGER_BORDER = Color.rgb(240, 188, 176);
+            COLOR_PENDING_BG = Color.rgb(255, 244, 232);
+            COLOR_PENDING_BORDER = Color.rgb(236, 203, 174);
+            COLOR_INACTIVE_BG = Color.rgb(247, 242, 237);
+            COLOR_DONE_BORDER = Color.rgb(190, 222, 191);
+        }
+    }
+
+    private void applySystemBars() {
+        Window window = getWindow();
+        window.setStatusBarColor(COLOR_BG);
+        window.setNavigationBarColor(COLOR_BG);
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            int flags = isNightTheme ? 0 : View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            window.getDecorView().setSystemUiVisibility(flags);
+        }
+    }
+
+    private void buildUi() {
+        applySystemBars();
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(COLOR_BG);
+        root.setPadding(dp(16), dp(22), dp(16), 0);
+        setContentView(root);
+
+        TextView eyebrow = new TextView(this);
+        eyebrow.setText("MAPLE PLAN");
+        eyebrow.setTextColor(COLOR_LEAF);
+        eyebrow.setTextSize(12);
+        eyebrow.setTypeface(Typeface.DEFAULT_BOLD);
+        root.addView(eyebrow);
+
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        root.addView(titleRow);
+
+        screenTitle = new TextView(this);
+        screenTitle.setTextColor(COLOR_TEXT);
+        screenTitle.setTextSize(28);
+        screenTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        titleRow.addView(screenTitle, new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+        ));
+
+        backButton = new Button(this);
+        backButton.setAllCaps(false);
+        backButton.setText("返回");
+        backButton.setTextSize(14);
+        backButton.setTypeface(Typeface.DEFAULT_BOLD);
+        backButton.setTextColor(COLOR_PRIMARY_DARK);
+        backButton.setBackground(rounded(COLOR_CONTROL_BG, COLOR_BORDER, 8));
+        backButton.setVisibility(View.GONE);
+        backButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                historyPlan = null;
+                renderHeaderAndForm();
+                renderNavigation();
+                renderPlans();
+            }
+        });
+        titleRow.addView(backButton, new LinearLayout.LayoutParams(dp(70), dp(42)));
+
+        addHorizontalSpace(titleRow, 8);
+
+        themeButton = new Button(this);
+        themeButton.setAllCaps(false);
+        themeButton.setTextSize(14);
+        themeButton.setTypeface(Typeface.DEFAULT_BOLD);
+        themeButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                isNightTheme = !isNightTheme;
+                themePreferences.setNightTheme(isNightTheme);
+                applyThemeColors();
+                buildUi();
+            }
+        });
+        titleRow.addView(themeButton, new LinearLayout.LayoutParams(dp(46), dp(42)));
+
+        addHorizontalSpace(titleRow, 8);
+
+        createButton = new Button(this);
+        createButton.setAllCaps(false);
+        createButton.setTextSize(14);
+        createButton.setTypeface(Typeface.DEFAULT_BOLD);
+        createButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                isCreatePanelVisible = !isCreatePanelVisible;
+                buildCreatePanel();
+                updateCreateButton();
+            }
+        });
+        titleRow.addView(createButton, new LinearLayout.LayoutParams(dp(82), dp(42)));
+
+        screenSubtitle = new TextView(this);
+        screenSubtitle.setTextColor(COLOR_MUTED);
+        screenSubtitle.setTextSize(14);
+        screenSubtitle.setPadding(0, dp(4), 0, dp(10));
+        root.addView(screenSubtitle);
+
+        railContainer = new LinearLayout(this);
+        railContainer.setOrientation(LinearLayout.HORIZONTAL);
+        railContainer.setPadding(dp(4), dp(4), dp(4), dp(4));
+        railContainer.setBackground(rounded(COLOR_RAIL, COLOR_BORDER, 8));
+        root.addView(railContainer, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(48)
+        ));
+
+        formContainer = new LinearLayout(this);
+        formContainer.setOrientation(LinearLayout.VERTICAL);
+        root.addView(formContainer);
+
+        summaryText = new TextView(this);
+        summaryText.setTextColor(COLOR_MUTED);
+        summaryText.setTextSize(14);
+        summaryText.setPadding(0, dp(14), 0, dp(8));
+        root.addView(summaryText);
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(false);
+        root.addView(scrollView, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+        ));
+
+        listContainer = new LinearLayout(this);
+        listContainer.setOrientation(LinearLayout.VERTICAL);
+        listContainer.setPadding(0, 0, 0, dp(20));
+        scrollView.addView(listContainer);
+
+        renderNavigation();
+        renderHeaderAndForm();
+        updateHeaderButtons();
+        renderPlans();
+    }
+
+    private void renderNavigation() {
+        if (railContainer == null) {
+            return;
+        }
+        railContainer.removeAllViews();
+        railContainer.setVisibility(historyPlan == null ? View.VISIBLE : View.GONE);
+        if (historyPlan != null) {
+            return;
+        }
+
+        railContainer.addView(navButton("日计划", TYPE_DAILY), new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                1f
+        ));
+
+        addHorizontalSpace(railContainer, 4);
+
+        railContainer.addView(navButton("月计划", TYPE_MONTHLY), new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                1f
+        ));
+
+        addHorizontalSpace(railContainer, 4);
+
+        railContainer.addView(navButton("年计划", TYPE_YEARLY), new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                1f
+        ));
+    }
+
+    private Button navButton(String text, final String type) {
+        boolean selected = activePlanType.equals(type);
+        Button button = new Button(this);
+        button.setAllCaps(false);
+        button.setText(text);
+        button.setTextSize(13);
+        button.setTypeface(Typeface.DEFAULT_BOLD);
+        button.setTextColor(selected ? Color.WHITE : COLOR_PRIMARY_DARK);
+        button.setBackground(rounded(
+                selected ? COLOR_PRIMARY : COLOR_CONTROL_BG,
+                selected ? COLOR_PRIMARY : COLOR_BORDER,
+                8
+        ));
+        button.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (!activePlanType.equals(type)) {
+                    activePlanType = type;
+                    resetCreateForm();
+                    isCreatePanelVisible = false;
+                    renderNavigation();
+                    renderHeaderAndForm();
+                    renderPlans();
+                }
+            }
+        });
+        return button;
+    }
+
+    private void renderHeaderAndForm() {
+        if (historyPlan != null) {
+            screenTitle.setText("打卡历史");
+            screenSubtitle.setText(historyPlan.title + " · 共 " + historyPlan.checkIns.size() + " 条记录");
+            summaryText.setText("");
+            formContainer.removeAllViews();
+            updateHeaderButtons();
+            return;
+        }
+
+        if (TYPE_DAILY.equals(activePlanType)) {
+            screenTitle.setText("日计划");
+            screenSubtitle.setText("记录每天、当日或一段日期内要坚持完成的事。");
+        } else if (TYPE_MONTHLY.equals(activePlanType)) {
+            screenTitle.setText("月计划");
+            screenSubtitle.setText("记录每月、当月或一段日期内的规划。");
+        } else {
+            screenTitle.setText("年计划");
+            screenSubtitle.setText("记录每年、当年或一段日期内的长期目标。");
+        }
+        updateHeaderButtons();
+        buildCreatePanel();
+    }
+
+    private void updateHeaderButtons() {
+        updateCreateButton();
+        updateThemeButton();
+        if (backButton != null) {
+            backButton.setVisibility(historyPlan == null ? View.GONE : View.VISIBLE);
+        }
+        if (createButton != null) {
+            createButton.setVisibility(historyPlan == null ? View.VISIBLE : View.GONE);
+        }
+        if (themeButton != null) {
+            themeButton.setVisibility(historyPlan == null ? View.VISIBLE : View.GONE);
+        }
+    }
+
+    private void updateCreateButton() {
+        if (createButton == null) {
+            return;
+        }
+        createButton.setText(isCreatePanelVisible ? "收起" : "新建");
+        createButton.setTextColor(isCreatePanelVisible ? COLOR_PRIMARY_DARK : Color.WHITE);
+        createButton.setBackground(rounded(
+                isCreatePanelVisible ? COLOR_CONTROL_BG : COLOR_PRIMARY,
+                isCreatePanelVisible ? COLOR_BORDER : COLOR_PRIMARY,
+                8
+        ));
+    }
+
+    private void updateThemeButton() {
+        if (themeButton == null) {
+            return;
+        }
+        themeButton.setText(isNightTheme ? "日" : "夜");
+        themeButton.setTextColor(COLOR_PRIMARY_DARK);
+        themeButton.setBackground(rounded(COLOR_CONTROL_BG, COLOR_BORDER, 8));
+    }
+
+    private String activePlanName() {
+        if (TYPE_DAILY.equals(activePlanType)) {
+            return "日计划";
+        }
+        if (TYPE_MONTHLY.equals(activePlanType)) {
+            return "月计划";
+        }
+        return "年计划";
+    }
+
+    private String titleHint() {
+        if (TYPE_DAILY.equals(activePlanType)) {
+            return "例如：每日记账";
+        }
+        if (TYPE_MONTHLY.equals(activePlanType)) {
+            return "例如：每月规划";
+        }
+        return "例如：年度成长计划";
+    }
+
+    private String noteHint() {
+        if (TYPE_DAILY.equals(activePlanType)) {
+            return "备注，例如：\n1. 上班交通地铁-12元\n2. 早餐-4元\n3. 日支出=...";
+        }
+        if (TYPE_MONTHLY.equals(activePlanType)) {
+            return "备注，例如：\n1. internal本\n   1. 运用 ai 学习 java\n2. 理财本";
+        }
+        return "备注，例如：\n1. 技术主线\n   1. Java 深入\n   2. 项目上线\n2. 健康主线\n   1. 稳定锻炼";
+    }
+
+    private void buildCreatePanel() {
+        formContainer.removeAllViews();
+        if (!isCreatePanelVisible) {
+            return;
+        }
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(14), dp(12), dp(14), dp(14));
+        panel.setBackground(rounded(COLOR_SURFACE, COLOR_BORDER, 8));
+        formContainer.addView(panel);
+
+        TextView panelTitle = new TextView(this);
+        panelTitle.setText("新建" + activePlanName());
+        panelTitle.setTextColor(COLOR_TEXT);
+        panelTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        panelTitle.setTextSize(17);
+        panel.addView(panelTitle);
+
+        titleInput = new EditText(this);
+        titleInput.setHint(titleHint());
+        titleInput.setSingleLine(true);
+        titleInput.setTextColor(COLOR_TEXT);
+        titleInput.setHintTextColor(COLOR_HINT);
+        titleInput.setTextSize(16);
+        titleInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        titleInput.setBackgroundColor(Color.TRANSPARENT);
+        titleInput.setPadding(0, dp(10), 0, dp(8));
+        panel.addView(titleInput);
+
+        noteInput = new EditText(this);
+        noteInput.setHint(noteHint());
+        noteInput.setMinLines(4);
+        noteInput.setGravity(Gravity.TOP);
+        noteInput.setTextColor(COLOR_TEXT);
+        noteInput.setHintTextColor(COLOR_HINT);
+        noteInput.setTextSize(15);
+        noteInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        noteInput.setBackground(rounded(COLOR_FIELD_BG, COLOR_BORDER, 8));
+        noteInput.setPadding(dp(10), dp(8), dp(10), dp(8));
+        panel.addView(noteInput, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(112)
+        ));
+
+        addVerticalSpace(panel, 10);
+        panel.addView(buildModeRow());
+
+        if (MODE_RANGE.equals(selectedMode)) {
+            addVerticalSpace(panel, 8);
+            panel.addView(buildDateRangeRow());
+        }
+
+        if (TYPE_DAILY.equals(activePlanType)) {
+            addVerticalSpace(panel, 8);
+            deadlineButton = secondaryButton("截止 " + formatMinutes(selectedDeadlineMinutes));
+            deadlineButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    pickTime(selectedDeadlineMinutes, new TimeSelectedCallback() {
+                        @Override
+                        public void onTimeSelected(int minutes) {
+                            selectedDeadlineMinutes = minutes;
+                            deadlineButton.setText("截止 " + formatMinutes(minutes));
+                        }
+                    });
+                }
+            });
+            panel.addView(deadlineButton, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(44)
+            ));
+        }
+
+        addVerticalSpace(panel, 10);
+        Button addButton = new Button(this);
+        addButton.setAllCaps(false);
+        addButton.setText("添加" + activePlanName());
+        addButton.setTextColor(Color.WHITE);
+        addButton.setTextSize(15);
+        addButton.setTypeface(Typeface.DEFAULT_BOLD);
+        addButton.setBackground(rounded(COLOR_PRIMARY, COLOR_PRIMARY, 8));
+        addButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                addPlan();
+            }
+        });
+        panel.addView(addButton, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(46)
+        ));
+    }
+
+    private LinearLayout buildModeRow() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+
+        everyModeButton = modeButton(everyModeLabel(), everyModeValue());
+        currentModeButton = modeButton(currentModeLabel(), currentModeValue());
+        rangeModeButton = modeButton("日期范围", MODE_RANGE);
+
+        row.addView(everyModeButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        addHorizontalSpace(row, 6);
+        row.addView(currentModeButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        addHorizontalSpace(row, 6);
+        row.addView(rangeModeButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        return row;
+    }
+
+    private String everyModeLabel() {
+        if (TYPE_DAILY.equals(activePlanType)) {
+            return "每日";
+        }
+        if (TYPE_MONTHLY.equals(activePlanType)) {
+            return "每月";
+        }
+        return "每年";
+    }
+
+    private String everyModeValue() {
+        if (TYPE_DAILY.equals(activePlanType)) {
+            return MODE_DAILY_EVERY;
+        }
+        if (TYPE_MONTHLY.equals(activePlanType)) {
+            return MODE_MONTHLY_EVERY;
+        }
+        return MODE_YEARLY_EVERY;
+    }
+
+    private String currentModeLabel() {
+        if (TYPE_DAILY.equals(activePlanType)) {
+            return "当日";
+        }
+        if (TYPE_MONTHLY.equals(activePlanType)) {
+            return "当月";
+        }
+        return "当年";
+    }
+
+    private String currentModeValue() {
+        if (TYPE_DAILY.equals(activePlanType)) {
+            return MODE_DAILY_TODAY;
+        }
+        if (TYPE_MONTHLY.equals(activePlanType)) {
+            return MODE_MONTHLY_THIS;
+        }
+        return MODE_YEARLY_THIS;
+    }
+
+    private Button modeButton(String text, final String mode) {
+        boolean selected = selectedMode.equals(mode);
+        Button button = new Button(this);
+        button.setAllCaps(false);
+        button.setText(text);
+        button.setTextSize(13);
+        button.setTextColor(selected ? Color.WHITE : COLOR_PRIMARY_DARK);
+        button.setTypeface(Typeface.DEFAULT_BOLD);
+        button.setBackground(rounded(
+                selected ? COLOR_PRIMARY : COLOR_CONTROL_BG,
+                selected ? COLOR_PRIMARY : COLOR_BORDER,
+                8
+        ));
+        button.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                selectedMode = mode;
+                if (MODE_RANGE.equals(mode) && selectedStartDate.isEmpty()) {
+                    selectedStartDate = todayKey();
+                    selectedEndDate = todayKey();
+                }
+                buildCreatePanel();
+            }
+        });
+        return button;
+    }
+
+    private LinearLayout buildDateRangeRow() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+
+        startDateButton = secondaryButton("开始 " + selectedStartDate);
+        startDateButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                pickDate(selectedStartDate, new DateSelectedCallback() {
+                    @Override
+                    public void onDateSelected(String dateKey) {
+                        selectedStartDate = dateKey;
+                        if (!selectedEndDate.isEmpty() && selectedEndDate.compareTo(selectedStartDate) < 0) {
+                            selectedEndDate = selectedStartDate;
+                        }
+                        buildCreatePanel();
+                    }
+                });
+            }
+        });
+        row.addView(startDateButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+
+        addHorizontalSpace(row, 8);
+
+        endDateButton = secondaryButton("结束 " + selectedEndDate);
+        endDateButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                pickDate(selectedEndDate, new DateSelectedCallback() {
+                    @Override
+                    public void onDateSelected(String dateKey) {
+                        selectedEndDate = dateKey;
+                        if (!selectedStartDate.isEmpty() && selectedEndDate.compareTo(selectedStartDate) < 0) {
+                            selectedStartDate = selectedEndDate;
+                        }
+                        buildCreatePanel();
+                    }
+                });
+            }
+        });
+        row.addView(endDateButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        return row;
+    }
+
+    private void renderPlans() {
+        if (listContainer == null) {
+            return;
+        }
+
+        if (historyPlan != null) {
+            renderHistoryPage();
+            return;
+        }
+
+        listContainer.removeAllViews();
+        List<PlanItem> visible = visiblePlans();
+        String today = todayKey();
+        int active = 0;
+        int completed = 0;
+        int overdue = 0;
+
+        for (PlanItem plan : visible) {
+            if (isActiveToday(plan, today)) {
+                active++;
+                if (hasCheckInForCurrentPeriod(plan)) {
+                    completed++;
+                } else if (TYPE_DAILY.equals(plan.type) && nowMinutes() > plan.deadlineMinutes) {
+                    overdue++;
+                }
+            }
+        }
+
+        if (TYPE_DAILY.equals(activePlanType)) {
+            String summary = "今天 " + today + "，活跃 " + active + " 项，" + completed + " 项已打卡";
+            if (overdue > 0) {
+                summary += "，" + overdue + " 项已超时";
+            }
+            summaryText.setText(summary);
+        } else if (TYPE_MONTHLY.equals(activePlanType)) {
+            summaryText.setText("本月 " + monthKey() + "，活跃 " + active + " 项，" + completed + " 项已打卡");
+        } else {
+            summaryText.setText("今年 " + yearKey() + "，活跃 " + active + " 项，" + completed + " 项已打卡");
+        }
+
+        if (visible.isEmpty()) {
+            listContainer.addView(buildEmptyState());
+            return;
+        }
+
+        for (PlanItem plan : visible) {
+            listContainer.addView(buildPlanCard(plan));
+            addVerticalSpace(listContainer, 10);
+        }
+    }
+
+    private List<PlanItem> visiblePlans() {
+        List<PlanItem> visible = new ArrayList<>();
+        for (PlanItem plan : plans) {
+            if (activePlanType.equals(plan.type)) {
+                visible.add(plan);
+            }
+        }
+        return visible;
+    }
+
+    private View buildEmptyState() {
+        LinearLayout empty = new LinearLayout(this);
+        empty.setOrientation(LinearLayout.VERTICAL);
+        empty.setGravity(Gravity.CENTER_HORIZONTAL);
+        empty.setPadding(dp(18), dp(32), dp(18), dp(32));
+        empty.setBackground(rounded(COLOR_FIELD_BG, COLOR_BORDER, 8));
+
+        TextView mark = new TextView(this);
+        mark.setText(TYPE_DAILY.equals(activePlanType) ? "日" : (TYPE_MONTHLY.equals(activePlanType) ? "月" : "年"));
+        mark.setTextSize(28);
+        mark.setTypeface(Typeface.DEFAULT_BOLD);
+        mark.setTextColor(COLOR_PRIMARY);
+        mark.setGravity(Gravity.CENTER);
+        empty.addView(mark);
+
+        TextView text = new TextView(this);
+        text.setText("先添加一个" + activePlanName());
+        text.setTextColor(COLOR_MUTED);
+        text.setTextSize(15);
+        text.setPadding(0, dp(8), 0, 0);
+        empty.addView(text);
+        return empty;
+    }
+
+    private View buildPlanCard(final PlanItem plan) {
+        String today = todayKey();
+        boolean active = isActiveToday(plan, today);
+        boolean checked = hasCheckInForCurrentPeriod(plan);
+        boolean overdue = active && !checked && TYPE_DAILY.equals(plan.type) && nowMinutes() > plan.deadlineMinutes;
+        boolean expanded = expandedPlanIds.contains(plan.id);
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(14));
+        int borderColor = checked ? COLOR_DONE_BORDER : (overdue ? COLOR_DANGER_BORDER : COLOR_BORDER);
+        card.setBackground(rounded(COLOR_SURFACE, borderColor, 8));
+
+        LinearLayout topRow = new LinearLayout(this);
+        topRow.setOrientation(LinearLayout.HORIZONTAL);
+        topRow.setGravity(Gravity.CENTER_VERTICAL);
+        card.addView(topRow);
+
+        TextView check = new TextView(this);
+        check.setText(checked ? "✓" : "");
+        check.setGravity(Gravity.CENTER);
+        check.setTextColor(Color.WHITE);
+        check.setTypeface(Typeface.DEFAULT_BOLD);
+        check.setTextSize(18);
+        check.setBackground(circle(checked ? COLOR_SUCCESS : Color.TRANSPARENT, checked ? COLOR_SUCCESS : COLOR_BORDER));
+        topRow.addView(check, new LinearLayout.LayoutParams(dp(30), dp(30)));
+
+        TextView name = new TextView(this);
+        name.setText(plan.title);
+        name.setTextColor(COLOR_TEXT);
+        name.setTextSize(18);
+        name.setTypeface(Typeface.DEFAULT_BOLD);
+        name.setPadding(dp(12), 0, dp(8), 0);
+        topRow.addView(name, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView badge = statusBadge(statusText(plan, active, checked, overdue), checked, overdue, active);
+        topRow.addView(badge);
+
+        TextView arrow = new TextView(this);
+        arrow.setText(expanded ? "▲" : "▼");
+        arrow.setTextColor(COLOR_PRIMARY_DARK);
+        arrow.setTextSize(16);
+        arrow.setTypeface(Typeface.DEFAULT_BOLD);
+        arrow.setGravity(Gravity.CENTER);
+        arrow.setBackground(rounded(COLOR_CONTROL_BG, COLOR_BORDER, 8));
+        arrow.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (expandedPlanIds.contains(plan.id)) {
+                    expandedPlanIds.remove(plan.id);
+                } else {
+                    expandedPlanIds.add(plan.id);
+                }
+                renderPlans();
+            }
+        });
+        LinearLayout.LayoutParams arrowParams = new LinearLayout.LayoutParams(dp(34), dp(34));
+        arrowParams.setMargins(dp(8), 0, 0, 0);
+        topRow.addView(arrow, arrowParams);
+
+        TextView schedule = new TextView(this);
+        schedule.setText(scheduleText(plan));
+        schedule.setTextColor(COLOR_MUTED);
+        schedule.setTextSize(14);
+        schedule.setPadding(dp(42), dp(8), 0, 0);
+        card.addView(schedule);
+
+        if (!plan.note.trim().isEmpty()) {
+            TextView note = new TextView(this);
+            note.setText(plan.note);
+            note.setTextColor(COLOR_TEXT);
+            note.setTextSize(14);
+            note.setLineSpacing(dp(2), 1.0f);
+            note.setPadding(dp(12), dp(10), dp(12), dp(10));
+            note.setBackground(rounded(COLOR_FIELD_BG, COLOR_BORDER, 8));
+            LinearLayout.LayoutParams noteParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            noteParams.setMargins(0, dp(10), 0, 0);
+            card.addView(note, noteParams);
+        }
+
+        TextView history = new TextView(this);
+        history.setText(historyText(plan));
+        history.setTextColor(COLOR_MUTED);
+        history.setTextSize(13);
+        history.setPadding(0, dp(10), 0, dp(10));
+        card.addView(history);
+
+        if (expanded) {
+            card.addView(buildCheckInDetails(plan));
+            addVerticalSpace(card, 10);
+        }
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setGravity(Gravity.CENTER_VERTICAL);
+        card.addView(actions);
+
+        Button checkButton = secondaryButton(checkButtonText(plan, checked, overdue, active));
+        checkButton.setEnabled(active);
+        checkButton.setTextColor(active ? Color.WHITE : COLOR_DISABLED);
+        checkButton.setBackground(active
+                ? rounded(COLOR_PRIMARY, COLOR_PRIMARY, 8)
+                : rounded(COLOR_INACTIVE_BG, COLOR_BORDER, 8));
+        checkButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                promptCheckInNote(plan);
+            }
+        });
+        actions.addView(checkButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+
+        if (TYPE_DAILY.equals(plan.type)) {
+            addHorizontalSpace(actions, 8);
+            Button timeButton = secondaryButton("改时间");
+            timeButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    pickTime(plan.deadlineMinutes, new TimeSelectedCallback() {
+                        @Override
+                        public void onTimeSelected(int minutes) {
+                            plan.deadlineMinutes = minutes;
+                            savePlans();
+                            renderPlans();
+                        }
+                    });
+                }
+            });
+            actions.addView(timeButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        }
+
+        addHorizontalSpace(actions, 8);
+        Button historyButton = secondaryButton("历史");
+        historyButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                openHistoryPage(plan);
+            }
+        });
+        actions.addView(historyButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+
+        addHorizontalSpace(actions, 8);
+        Button deleteButton = secondaryButton("删除");
+        deleteButton.setTextColor(COLOR_DANGER);
+        deleteButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                confirmDelete(plan);
+            }
+        });
+        actions.addView(deleteButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+
+        return card;
+    }
+
+    private TextView statusBadge(String text, boolean checked, boolean overdue, boolean active) {
+        TextView badge = new TextView(this);
+        badge.setGravity(Gravity.CENTER);
+        badge.setText(text);
+        badge.setTextSize(12);
+        badge.setTypeface(Typeface.DEFAULT_BOLD);
+        badge.setPadding(dp(9), dp(5), dp(9), dp(5));
+        if (checked) {
+            badge.setTextColor(COLOR_SUCCESS);
+            badge.setBackground(rounded(COLOR_SUCCESS_BG, COLOR_SUCCESS_BORDER, 8));
+        } else if (overdue) {
+            badge.setTextColor(COLOR_DANGER);
+            badge.setBackground(rounded(COLOR_DANGER_BG, COLOR_DANGER_BORDER, 8));
+        } else if (!active) {
+            badge.setTextColor(COLOR_DISABLED);
+            badge.setBackground(rounded(COLOR_INACTIVE_BG, COLOR_BORDER, 8));
+        } else {
+            badge.setTextColor(COLOR_PRIMARY_DARK);
+            badge.setBackground(rounded(COLOR_PENDING_BG, COLOR_PENDING_BORDER, 8));
+        }
+        return badge;
+    }
+
+    private String statusText(PlanItem plan, boolean active, boolean checked, boolean overdue) {
+        if (checked) {
+            if (TYPE_DAILY.equals(plan.type)) {
+                return "今日已打卡";
+            }
+            if (TYPE_MONTHLY.equals(plan.type)) {
+                return "本月已打卡";
+            }
+            return "今年已打卡";
+        }
+        if (!active) {
+            return inactiveText(plan);
+        }
+        if (overdue) {
+            return "已超时";
+        }
+        return "待打卡";
+    }
+
+    private String checkButtonText(PlanItem plan, boolean checked, boolean overdue, boolean active) {
+        if (!active) {
+            return "不在周期";
+        }
+        if (checked) {
+            return "再记一次";
+        }
+        if (overdue) {
+            return "补打卡";
+        }
+        return "打卡";
+    }
+
+    private String scheduleText(PlanItem plan) {
+        if (TYPE_DAILY.equals(plan.type)) {
+            if (MODE_DAILY_EVERY.equals(plan.scheduleMode)) {
+                return "每日 · 每天 " + formatMinutes(plan.deadlineMinutes) + " 前";
+            }
+            if (MODE_DAILY_TODAY.equals(plan.scheduleMode)) {
+                return "当日 · " + plan.startDate + " · " + formatMinutes(plan.deadlineMinutes) + " 前";
+            }
+            return "日期范围 · " + plan.startDate + " 至 " + plan.endDate + " · 每天 " + formatMinutes(plan.deadlineMinutes) + " 前";
+        }
+
+        if (TYPE_MONTHLY.equals(plan.type) && MODE_MONTHLY_EVERY.equals(plan.scheduleMode)) {
+            return "每月 · 每个月记录一次";
+        }
+        if (TYPE_MONTHLY.equals(plan.type) && MODE_MONTHLY_THIS.equals(plan.scheduleMode)) {
+            return "当月 · " + plan.startDate + " 至 " + plan.endDate;
+        }
+        if (TYPE_YEARLY.equals(plan.type) && MODE_YEARLY_EVERY.equals(plan.scheduleMode)) {
+            return "每年 · 每年记录一次";
+        }
+        if (TYPE_YEARLY.equals(plan.type) && MODE_YEARLY_THIS.equals(plan.scheduleMode)) {
+            return "当年 · " + plan.startDate + " 至 " + plan.endDate;
+        }
+        return "日期范围 · " + plan.startDate + " 至 " + plan.endDate;
+    }
+
+    private String historyText(PlanItem plan) {
+        if (plan.checkIns.isEmpty()) {
+            return "暂无打卡记录";
+        }
+
+        StringBuilder builder = new StringBuilder("最近打卡：");
+        int count = 0;
+        for (int i = plan.checkIns.size() - 1; i >= 0 && count < 3; i--) {
+            CheckIn checkIn = plan.checkIns.get(i);
+            if (count > 0) {
+                builder.append("；");
+            }
+            builder.append(checkIn.checkedAt);
+            if (checkIn.note != null && !checkIn.note.trim().isEmpty()) {
+                builder.append("：").append(checkIn.note.trim());
+            }
+            count++;
+        }
+        return builder.toString();
+    }
+
+    private void openHistoryPage(PlanItem plan) {
+        historyPlan = plan;
+        isCreatePanelVisible = false;
+        renderNavigation();
+        renderHeaderAndForm();
+        renderHistoryPage();
+    }
+
+    private void renderHistoryPage() {
+        if (listContainer == null || historyPlan == null) {
+            return;
+        }
+
+        listContainer.removeAllViews();
+        if (historyPlan.checkIns.isEmpty()) {
+            listContainer.addView(buildHistoryEmptyState());
+            return;
+        }
+
+        for (int i = historyPlan.checkIns.size() - 1; i >= 0; i--) {
+            listContainer.addView(buildHistoryRecordCard(historyPlan.checkIns.get(i), historyPlan.checkIns.size() - i));
+            addVerticalSpace(listContainer, 10);
+        }
+    }
+
+    private View buildHistoryEmptyState() {
+        LinearLayout empty = new LinearLayout(this);
+        empty.setOrientation(LinearLayout.VERTICAL);
+        empty.setGravity(Gravity.CENTER_HORIZONTAL);
+        empty.setPadding(dp(18), dp(32), dp(18), dp(32));
+        empty.setBackground(rounded(COLOR_FIELD_BG, COLOR_BORDER, 8));
+
+        TextView title = new TextView(this);
+        title.setText("暂无完整打卡记录");
+        title.setTextColor(COLOR_TEXT);
+        title.setTextSize(16);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        empty.addView(title);
+
+        TextView sub = new TextView(this);
+        sub.setText("返回计划列表后点击打卡即可生成记录");
+        sub.setTextColor(COLOR_MUTED);
+        sub.setTextSize(14);
+        sub.setPadding(0, dp(8), 0, 0);
+        empty.addView(sub);
+        return empty;
+    }
+
+    private View buildHistoryRecordCard(CheckIn checkIn, int displayIndex) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackground(rounded(COLOR_SURFACE, COLOR_BORDER, 8));
+
+        TextView title = new TextView(this);
+        title.setText("第 " + displayIndex + " 条 · " + periodLabel(checkIn));
+        title.setTextColor(COLOR_PRIMARY_DARK);
+        title.setTextSize(14);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        card.addView(title);
+
+        TextView time = new TextView(this);
+        time.setText(checkIn.checkedAt);
+        time.setTextColor(COLOR_TEXT);
+        time.setTextSize(16);
+        time.setTypeface(Typeface.DEFAULT_BOLD);
+        time.setPadding(0, dp(6), 0, 0);
+        card.addView(time);
+
+        TextView note = new TextView(this);
+        String noteText = checkIn.note == null || checkIn.note.trim().isEmpty()
+                ? "未填写备注"
+                : checkIn.note.trim();
+        note.setText(noteText);
+        note.setTextColor(checkIn.note == null || checkIn.note.trim().isEmpty() ? COLOR_MUTED : COLOR_TEXT);
+        note.setTextSize(14);
+        note.setLineSpacing(dp(2), 1.0f);
+        note.setPadding(0, dp(8), 0, 0);
+        card.addView(note);
+
+        return card;
+    }
+
+    private String periodLabel(CheckIn checkIn) {
+        if (TYPE_DAILY.equals(checkIn.targetType)) {
+            return "日计划 " + checkIn.targetKey;
+        }
+        if (TYPE_MONTHLY.equals(checkIn.targetType)) {
+            return "月计划 " + checkIn.targetKey;
+        }
+        return "年计划 " + checkIn.targetKey;
+    }
+
+    private View buildCheckInDetails(PlanItem plan) {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(12), dp(10), dp(12), dp(10));
+        panel.setBackground(rounded(COLOR_FIELD_BG, COLOR_BORDER, 8));
+
+        TextView title = new TextView(this);
+        title.setText("全部打卡备注");
+        title.setTextColor(COLOR_TEXT);
+        title.setTextSize(14);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        panel.addView(title);
+
+        if (plan.checkIns.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText("暂无打卡备注");
+            empty.setTextColor(COLOR_MUTED);
+            empty.setTextSize(13);
+            empty.setPadding(0, dp(8), 0, 0);
+            panel.addView(empty);
+            return panel;
+        }
+
+        for (int i = plan.checkIns.size() - 1; i >= 0; i--) {
+            CheckIn checkIn = plan.checkIns.get(i);
+            TextView item = new TextView(this);
+            String note = checkIn.note == null || checkIn.note.trim().isEmpty()
+                    ? "未填写备注"
+                    : checkIn.note.trim();
+            item.setText(checkIn.checkedAt + "\n" + note);
+            item.setTextColor(COLOR_TEXT);
+            item.setTextSize(13);
+            item.setLineSpacing(dp(2), 1.0f);
+            item.setPadding(0, dp(8), 0, 0);
+            panel.addView(item);
+        }
+
+        return panel;
+    }
+
+    private void addPlan() {
+        String title = titleInput.getText().toString().trim();
+        if (title.isEmpty()) {
+            titleInput.setError("写一个计划名称");
+            titleInput.requestFocus();
+            return;
+        }
+
+        PlanItem plan = new PlanItem();
+        plan.id = String.valueOf(System.currentTimeMillis());
+        plan.type = activePlanType;
+        plan.title = title;
+        plan.note = noteInput.getText().toString().trim();
+        plan.scheduleMode = selectedMode;
+        plan.deadlineMinutes = TYPE_DAILY.equals(activePlanType) ? selectedDeadlineMinutes : 0;
+        plan.createdAt = System.currentTimeMillis();
+
+        applySelectedRange(plan);
+        if (MODE_RANGE.equals(plan.scheduleMode) && plan.endDate.compareTo(plan.startDate) < 0) {
+            titleInput.setError("结束日期不能早于开始日期");
+            return;
+        }
+
+        plans.add(0, plan);
+        savePlans();
+        hideKeyboard(titleInput);
+        resetCreateForm();
+        isCreatePanelVisible = false;
+        renderHeaderAndForm();
+        renderPlans();
+    }
+
+    private void applySelectedRange(PlanItem plan) {
+        if (TYPE_DAILY.equals(plan.type)) {
+            if (MODE_DAILY_TODAY.equals(plan.scheduleMode)) {
+                plan.startDate = todayKey();
+                plan.endDate = todayKey();
+            } else if (MODE_RANGE.equals(plan.scheduleMode)) {
+                plan.startDate = selectedStartDate.isEmpty() ? todayKey() : selectedStartDate;
+                plan.endDate = selectedEndDate.isEmpty() ? plan.startDate : selectedEndDate;
+            } else {
+                plan.startDate = "";
+                plan.endDate = "";
+            }
+            return;
+        }
+
+        if (MODE_MONTHLY_THIS.equals(plan.scheduleMode)) {
+            plan.startDate = monthStartKey();
+            plan.endDate = monthEndKey();
+        } else if (MODE_YEARLY_THIS.equals(plan.scheduleMode)) {
+            plan.startDate = yearStartKey();
+            plan.endDate = yearEndKey();
+        } else if (MODE_RANGE.equals(plan.scheduleMode)) {
+            plan.startDate = selectedStartDate.isEmpty() ? todayKey() : selectedStartDate;
+            plan.endDate = selectedEndDate.isEmpty() ? plan.startDate : selectedEndDate;
+        } else {
+            plan.startDate = "";
+            plan.endDate = "";
+        }
+    }
+
+    private void resetCreateForm() {
+        selectedMode = everyModeValue();
+        selectedDeadlineMinutes = 12 * 60;
+        selectedStartDate = "";
+        selectedEndDate = "";
+    }
+
+    private void promptCheckInNote(final PlanItem plan) {
+        if (!isActiveToday(plan, todayKey())) {
+            return;
+        }
+
+        final EditText input = new EditText(this);
+        input.setHint("写下这次打卡备注，可留空");
+        input.setHintTextColor(COLOR_HINT);
+        input.setTextColor(COLOR_TEXT);
+        input.setMinLines(3);
+        input.setGravity(Gravity.TOP);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        input.setBackground(rounded(COLOR_FIELD_BG, COLOR_BORDER, 8));
+        input.setPadding(dp(10), dp(8), dp(10), dp(8));
+
+        new AlertDialog.Builder(this)
+                .setTitle("打卡备注")
+                .setView(input)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("保存打卡", (dialog, which) -> addCheckIn(plan, input.getText().toString().trim()))
+                .show();
+    }
+
+    private void addCheckIn(PlanItem plan, String note) {
+        if (!isActiveToday(plan, todayKey())) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        CheckIn checkIn = new CheckIn();
+        checkIn.id = plan.id + "-" + now;
+        checkIn.targetType = plan.type;
+        checkIn.targetKey = currentTargetKey(plan);
+        checkIn.checkedAtMillis = now;
+        checkIn.checkedAt = formatDateTime(new Date(now));
+        checkIn.note = note;
+        plan.checkIns.add(checkIn);
+        expandedPlanIds.add(plan.id);
+        savePlans();
+        renderPlans();
+    }
+
+    private void confirmDelete(final PlanItem plan) {
+        new AlertDialog.Builder(this)
+                .setTitle("删除计划")
+                .setMessage("确定删除“" + plan.title + "”吗？")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("删除", (dialog, which) -> {
+                    plans.remove(plan);
+                    if (historyPlan == plan) {
+                        historyPlan = null;
+                    }
+                    savePlans();
+                    renderHeaderAndForm();
+                    renderNavigation();
+                    renderPlans();
+                })
+                .show();
+    }
+
+    private boolean isActiveToday(PlanItem plan, String today) {
+        return PlanRules.isActiveOnDate(plan, today);
+    }
+
+    private String inactiveText(PlanItem plan) {
+        return PlanRules.inactiveText(plan, todayKey());
+    }
+
+    private boolean hasCheckInForCurrentPeriod(PlanItem plan) {
+        return PlanRules.hasCheckInForPeriod(plan, currentTargetKey(plan));
+    }
+
+    private String currentTargetKey(PlanItem plan) {
+        if (TYPE_DAILY.equals(plan.type)) {
+            return todayKey();
+        }
+        if (TYPE_MONTHLY.equals(plan.type)) {
+            return monthKey();
+        }
+        return yearKey();
+    }
+
+    private void pickTime(int currentMinutes, final TimeSelectedCallback callback) {
+        int hour = currentMinutes / 60;
+        int minute = currentMinutes % 60;
+        TimePickerDialog dialog = new TimePickerDialog(
+                this,
+                new TimePickerDialog.OnTimeSetListener() {
+                    @Override
+                    public void onTimeSet(TimePicker view, int hourOfDay, int selectedMinute) {
+                        callback.onTimeSelected(hourOfDay * 60 + selectedMinute);
+                    }
+                },
+                hour,
+                minute,
+                true
+        );
+        dialog.show();
+    }
+
+    private void pickDate(String currentDate, final DateSelectedCallback callback) {
+        Calendar calendar = Calendar.getInstance();
+        if (currentDate != null && !currentDate.isEmpty()) {
+            Date parsed = DateKeys.parseDate(currentDate);
+            if (parsed != null) {
+                calendar.setTime(parsed);
+            }
+        }
+        DatePickerDialog dialog = new DatePickerDialog(
+                this,
+                new DatePickerDialog.OnDateSetListener() {
+                    @Override
+                    public void onDateSet(DatePicker view, int year, int month, int dayOfMonth) {
+                        Calendar selected = Calendar.getInstance();
+                        selected.set(Calendar.YEAR, year);
+                        selected.set(Calendar.MONTH, month);
+                        selected.set(Calendar.DAY_OF_MONTH, dayOfMonth);
+                        callback.onDateSelected(DateKeys.formatDate(selected.getTime()));
+                    }
+                },
+                calendar.get(Calendar.YEAR),
+                calendar.get(Calendar.MONTH),
+                calendar.get(Calendar.DAY_OF_MONTH)
+        );
+        dialog.show();
+    }
+
+    private Button secondaryButton(String text) {
+        Button button = new Button(this);
+        button.setAllCaps(false);
+        button.setText(text);
+        button.setTextSize(13);
+        button.setTextColor(COLOR_PRIMARY_DARK);
+        button.setBackground(rounded(COLOR_CONTROL_BG, COLOR_BORDER, 8));
+        return button;
+    }
+
+    private GradientDrawable rounded(int fill, int stroke, int radiusDp) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setShape(GradientDrawable.RECTANGLE);
+        drawable.setColor(fill);
+        drawable.setStroke(dp(1), stroke);
+        drawable.setCornerRadius(dp(radiusDp));
+        return drawable;
+    }
+
+    private GradientDrawable circle(int fill, int stroke) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setShape(GradientDrawable.OVAL);
+        drawable.setColor(fill);
+        drawable.setStroke(dp(2), stroke);
+        return drawable;
+    }
+
+    private void loadPlans() {
+        plans.clear();
+        plans.addAll(repository.loadPlans());
+    }
+
+    private void savePlans() {
+        repository.savePlans(plans);
+    }
+
+    private void scheduleMidnightRefresh() {
+        midnightHandler.removeCallbacks(midnightRefresh);
+        midnightHandler.postDelayed(midnightRefresh, millisecondsUntilNextMidnight());
+    }
+
+    private long millisecondsUntilNextMidnight() {
+        Calendar now = Calendar.getInstance();
+        Calendar next = (Calendar) now.clone();
+        next.add(Calendar.DAY_OF_YEAR, 1);
+        next.set(Calendar.HOUR_OF_DAY, 0);
+        next.set(Calendar.MINUTE, 0);
+        next.set(Calendar.SECOND, 0);
+        next.set(Calendar.MILLISECOND, 0);
+        return Math.max(1000L, next.getTimeInMillis() - now.getTimeInMillis());
+    }
+
+    private String todayKey() {
+        return DateKeys.todayKey();
+    }
+
+    private String monthKey() {
+        return DateKeys.monthKey();
+    }
+
+    private String yearKey() {
+        return DateKeys.yearKey();
+    }
+
+    private String monthStartKey() {
+        return DateKeys.monthStartKey();
+    }
+
+    private String monthEndKey() {
+        return DateKeys.monthEndKey();
+    }
+
+    private String yearStartKey() {
+        return DateKeys.yearStartKey();
+    }
+
+    private String yearEndKey() {
+        return DateKeys.yearEndKey();
+    }
+
+    private int nowMinutes() {
+        Calendar calendar = Calendar.getInstance();
+        return calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE);
+    }
+
+    private String formatMinutes(int minutes) {
+        return DateKeys.formatMinutes(minutes);
+    }
+
+    private String formatDateTime(Date date) {
+        return DateKeys.formatDateTime(date);
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private void addVerticalSpace(LinearLayout parent, int dpValue) {
+        Space space = new Space(this);
+        parent.addView(space, new LinearLayout.LayoutParams(1, dp(dpValue)));
+    }
+
+    private void addHorizontalSpace(LinearLayout parent, int dpValue) {
+        Space space = new Space(this);
+        parent.addView(space, new LinearLayout.LayoutParams(dp(dpValue), 1));
+    }
+
+    private void hideKeyboard(View view) {
+        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+        }
+    }
+
+    private interface TimeSelectedCallback {
+        void onTimeSelected(int minutes);
+    }
+
+    private interface DateSelectedCallback {
+        void onDateSelected(String dateKey);
+    }
+
+}
