@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 
 import com.maple.daily.model.CheckIn;
 import com.maple.daily.model.DailyData;
+import com.maple.daily.model.MemoNote;
 import com.maple.daily.model.PlanItem;
 import com.maple.daily.model.QuickNote;
 import com.maple.daily.util.DateKeys;
@@ -23,7 +24,7 @@ import static com.maple.daily.model.PlanConstants.TYPE_MONTHLY;
 import static com.maple.daily.model.PlanConstants.TYPE_YEARLY;
 
 public class PlanRepository {
-    public static final int CURRENT_SCHEMA_VERSION = 4;
+    public static final int CURRENT_SCHEMA_VERSION = 5;
 
     private static final String PREFS_NAME = "daily_maple_prefs";
     private static final String DATA_KEY = "daily_data";
@@ -45,11 +46,11 @@ public class PlanRepository {
 
         String legacyRaw = preferences.getString(LEGACY_TODOS_KEY, null);
         if (legacyRaw != null && loadLegacyTodos(legacyRaw, data.plans)) {
-            saveData(data.plans, data.quickNotes);
+            saveData(data.plans, data.quickNotes, data.memoNotes);
             return data;
         }
 
-        saveData(data.plans, data.quickNotes);
+        saveData(data.plans, data.quickNotes, data.memoNotes);
         return data;
     }
 
@@ -58,10 +59,15 @@ public class PlanRepository {
     }
 
     public void savePlans(List<PlanItem> plans) {
-        saveData(plans, loadData().quickNotes);
+        DailyData data = loadData();
+        saveData(plans, data.quickNotes, data.memoNotes);
     }
 
     public void saveData(List<PlanItem> plans, List<QuickNote> quickNotes) {
+        saveData(plans, quickNotes, loadData().memoNotes);
+    }
+
+    public void saveData(List<PlanItem> plans, List<QuickNote> quickNotes, List<MemoNote> memoNotes) {
         JSONArray array = new JSONArray();
         for (PlanItem plan : plans) {
             JSONObject object = new JSONObject();
@@ -86,6 +92,7 @@ public class PlanRepository {
             data.put("schemaVersion", CURRENT_SCHEMA_VERSION);
             data.put("plans", array);
             data.put("quickNotes", quickNotesToJson(quickNotes));
+            data.put("memoNotes", memoNotesToJson(memoNotes));
             preferences.edit()
                     .putString(DATA_KEY, data.toString())
                     .remove(LEGACY_TODOS_KEY)
@@ -108,8 +115,12 @@ public class PlanRepository {
                 if (quickNotes != null) {
                     parseQuickNotesArray(quickNotes, dailyData.quickNotes);
                 }
+                JSONArray memoNotes = data.optJSONArray("memoNotes");
+                if (memoNotes != null) {
+                    parseMemoNotesArray(memoNotes, dailyData.memoNotes);
+                }
                 if (schemaVersion < CURRENT_SCHEMA_VERSION) {
-                    saveData(dailyData.plans, dailyData.quickNotes);
+                    saveData(dailyData.plans, dailyData.quickNotes, dailyData.memoNotes);
                 }
                 return true;
             }
@@ -117,13 +128,14 @@ public class PlanRepository {
             JSONArray oldTodos = data.optJSONArray("todos");
             if (oldTodos != null) {
                 parseLegacyTodosArray(oldTodos, dailyData.plans);
-                saveData(dailyData.plans, dailyData.quickNotes);
+                saveData(dailyData.plans, dailyData.quickNotes, dailyData.memoNotes);
                 return true;
             }
             return false;
         } catch (JSONException ignored) {
             dailyData.plans.clear();
             dailyData.quickNotes.clear();
+            dailyData.memoNotes.clear();
             return false;
         }
     }
@@ -243,6 +255,39 @@ public class PlanRepository {
             object.put("content", note.content);
             object.put("createdAt", note.createdAt);
             object.put("createdAtText", note.createdAtText);
+            array.put(object);
+        }
+        return array;
+    }
+
+    private void parseMemoNotesArray(JSONArray array, List<MemoNote> memoNotes) throws JSONException {
+        for (int i = 0; i < array.length(); i++) {
+            JSONObject object = array.getJSONObject(i);
+            MemoNote note = new MemoNote();
+            note.id = object.optString("id", String.valueOf(System.currentTimeMillis() + i));
+            note.title = object.optString("title", "");
+            note.content = object.optString("content", "");
+            note.createdAt = object.optLong("createdAt", System.currentTimeMillis());
+            note.updatedAt = object.optLong("updatedAt", note.createdAt);
+            note.createdAtText = object.optString("createdAtText", "");
+            note.updatedAtText = object.optString("updatedAtText", "");
+            if (!note.title.trim().isEmpty() || !note.content.trim().isEmpty()) {
+                memoNotes.add(note);
+            }
+        }
+    }
+
+    private JSONArray memoNotesToJson(List<MemoNote> memoNotes) throws JSONException {
+        JSONArray array = new JSONArray();
+        for (MemoNote note : memoNotes) {
+            JSONObject object = new JSONObject();
+            object.put("id", note.id);
+            object.put("title", note.title);
+            object.put("content", note.content);
+            object.put("createdAt", note.createdAt);
+            object.put("updatedAt", note.updatedAt);
+            object.put("createdAtText", note.createdAtText);
+            object.put("updatedAtText", note.updatedAtText);
             array.put(object);
         }
         return array;
