@@ -21,6 +21,7 @@ import android.text.style.TypefaceSpan;
 import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
+import android.view.animation.DecelerateInterpolator;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.DatePicker;
@@ -105,6 +106,7 @@ public class MainActivity extends Activity {
     private ThemePreferences themePreferences;
     private LinearLayout railContainer;
     private LinearLayout planTypeContainer;
+    private LinearLayout bottomNavContainer;
     private LinearLayout formContainer;
     private LinearLayout listContainer;
     private TextView screenTitle;
@@ -130,6 +132,7 @@ public class MainActivity extends Activity {
     private String selectedEndDate = "";
     private boolean isCreatePanelVisible = false;
     private boolean isNightTheme = false;
+    private boolean isModuleMenuExpanded = false;
     private PlanItem historyPlan = null;
     private PlanItem editingPlan = null;
     private MemoNote editingMemo = null;
@@ -265,6 +268,7 @@ public class MainActivity extends Activity {
             @Override
             public void onClick(View view) {
                 historyPlan = null;
+                isModuleMenuExpanded = false;
                 renderHeaderAndForm();
                 renderNavigation();
                 renderPlans();
@@ -310,6 +314,7 @@ public class MainActivity extends Activity {
                     resetCreateForm();
                     isCreatePanelVisible = true;
                 }
+                isModuleMenuExpanded = false;
                 renderNavigation();
                 renderHeaderAndForm();
                 renderPlans();
@@ -320,27 +325,26 @@ public class MainActivity extends Activity {
         screenSubtitle = new TextView(this);
         screenSubtitle.setTextColor(COLOR_MUTED);
         screenSubtitle.setTextSize(14);
-        screenSubtitle.setPadding(0, dp(4), 0, dp(10));
+        screenSubtitle.setPadding(0, dp(4), 0, dp(8));
         root.addView(screenSubtitle);
 
         railContainer = new LinearLayout(this);
-        railContainer.setOrientation(LinearLayout.HORIZONTAL);
-        railContainer.setPadding(dp(4), dp(4), dp(4), dp(4));
-        railContainer.setBackground(rounded(COLOR_RAIL, COLOR_BORDER, 8));
+        railContainer.setOrientation(LinearLayout.VERTICAL);
+        railContainer.setPadding(0, 0, 0, 0);
         root.addView(railContainer, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(48)
+                LinearLayout.LayoutParams.WRAP_CONTENT
         ));
 
         planTypeContainer = new LinearLayout(this);
-        planTypeContainer.setOrientation(LinearLayout.HORIZONTAL);
-        planTypeContainer.setPadding(dp(4), dp(4), dp(4), dp(4));
-        planTypeContainer.setBackground(rounded(COLOR_CONTROL_BG, COLOR_BORDER, 8));
+        planTypeContainer.setOrientation(LinearLayout.VERTICAL);
+        planTypeContainer.setPadding(dp(12), dp(12), dp(12), dp(12));
+        planTypeContainer.setBackground(rounded(COLOR_SURFACE, COLOR_BORDER, 8));
         LinearLayout.LayoutParams planTypeParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(44)
+                LinearLayout.LayoutParams.WRAP_CONTENT
         );
-        planTypeParams.setMargins(0, dp(8), 0, 0);
+        planTypeParams.setMargins(0, dp(8), 0, dp(2));
         root.addView(planTypeContainer, planTypeParams);
 
         formContainer = new LinearLayout(this);
@@ -366,6 +370,18 @@ public class MainActivity extends Activity {
         listContainer.setPadding(0, 0, 0, dp(20));
         scrollView.addView(listContainer);
 
+        bottomNavContainer = new LinearLayout(this);
+        bottomNavContainer.setOrientation(LinearLayout.HORIZONTAL);
+        bottomNavContainer.setGravity(Gravity.CENTER_VERTICAL);
+        bottomNavContainer.setPadding(dp(4), dp(5), dp(4), dp(5));
+        bottomNavContainer.setBackground(rounded(COLOR_SURFACE, COLOR_BORDER, 10));
+        LinearLayout.LayoutParams bottomNavParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(58)
+        );
+        bottomNavParams.setMargins(0, dp(6), 0, dp(10));
+        root.addView(bottomNavContainer, bottomNavParams);
+
         renderNavigation();
         renderHeaderAndForm();
         updateHeaderButtons();
@@ -380,68 +396,163 @@ public class MainActivity extends Activity {
         if (planTypeContainer != null) {
             planTypeContainer.removeAllViews();
         }
-        railContainer.setVisibility(historyPlan == null ? View.VISIBLE : View.GONE);
+        if (bottomNavContainer != null) {
+            bottomNavContainer.removeAllViews();
+        }
+
+        boolean showNavigation = historyPlan == null;
+        railContainer.setVisibility(showNavigation ? View.VISIBLE : View.GONE);
         if (planTypeContainer != null) {
-            planTypeContainer.setVisibility(historyPlan == null && MODULE_PLAN.equals(activeModule) ? View.VISIBLE : View.GONE);
+            planTypeContainer.setVisibility(showNavigation && isModuleMenuExpanded ? View.VISIBLE : View.GONE);
+            planTypeContainer.setAlpha(1f);
+            planTypeContainer.setTranslationY(0f);
         }
-        if (historyPlan != null) {
+        if (bottomNavContainer != null) {
+            bottomNavContainer.setVisibility(showNavigation ? View.VISIBLE : View.GONE);
+        }
+        if (!showNavigation) {
             return;
         }
 
-        railContainer.addView(moduleButton("计划", MODULE_PLAN), new LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                1f
-        ));
-
-        addHorizontalSpace(railContainer, 4);
-
-        railContainer.addView(moduleButton("一言", MODULE_QUICK_NOTE), new LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                1f
-        ));
-
-        addHorizontalSpace(railContainer, 4);
-
-        railContainer.addView(moduleButton("随记", MODULE_MEMO), new LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                1f
-        ));
-
-        renderPlanTypeNavigation();
+        railContainer.addView(buildCollapsedSelector());
+        renderDropdownMenu();
+        renderBottomNavigation();
     }
 
-    private void renderPlanTypeNavigation() {
-        if (planTypeContainer == null || !MODULE_PLAN.equals(activeModule) || historyPlan != null) {
+    private View buildCollapsedSelector() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(12), dp(10), dp(10), dp(10));
+        card.setBackground(rounded(COLOR_SURFACE, COLOR_BORDER, 10));
+        card.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                toggleModuleMenu();
+            }
+        });
+
+        TextView marker = new TextView(this);
+        marker.setText(moduleMarkText());
+        marker.setGravity(Gravity.CENTER);
+        marker.setTextColor(Color.WHITE);
+        marker.setTextSize(14);
+        marker.setTypeface(Typeface.DEFAULT_BOLD);
+        marker.setBackground(circle(COLOR_PRIMARY, COLOR_PRIMARY));
+        card.addView(marker, new LinearLayout.LayoutParams(dp(32), dp(32)));
+
+        LinearLayout textColumn = new LinearLayout(this);
+        textColumn.setOrientation(LinearLayout.VERTICAL);
+        textColumn.setPadding(dp(12), 0, dp(8), 0);
+        card.addView(textColumn, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView eyebrow = new TextView(this);
+        eyebrow.setText("当前功能");
+        eyebrow.setTextColor(COLOR_MUTED);
+        eyebrow.setTextSize(11);
+        eyebrow.setTypeface(Typeface.DEFAULT_BOLD);
+        textColumn.addView(eyebrow);
+
+        TextView current = new TextView(this);
+        current.setText(currentModuleLabel());
+        current.setTextColor(COLOR_TEXT);
+        current.setTextSize(16);
+        current.setTypeface(Typeface.DEFAULT_BOLD);
+        textColumn.addView(current);
+
+        TextView arrow = new TextView(this);
+        arrow.setText(isModuleMenuExpanded ? "收起 ▲" : "切换 ▼");
+        arrow.setTextColor(COLOR_PRIMARY_DARK);
+        arrow.setTextSize(13);
+        arrow.setTypeface(Typeface.DEFAULT_BOLD);
+        arrow.setGravity(Gravity.CENTER);
+        arrow.setPadding(dp(8), 0, dp(8), 0);
+        arrow.setBackground(rounded(COLOR_CONTROL_BG, COLOR_BORDER, 8));
+        card.addView(arrow, new LinearLayout.LayoutParams(dp(74), dp(34)));
+        return card;
+    }
+
+    private void renderDropdownMenu() {
+        if (planTypeContainer == null || !isModuleMenuExpanded || historyPlan != null) {
             return;
         }
 
-        planTypeContainer.addView(planTypeButton("日计划", TYPE_DAILY), new LinearLayout.LayoutParams(
+        TextView title = new TextView(this);
+        title.setText("选择功能");
+        title.setTextColor(COLOR_TEXT);
+        title.setTextSize(15);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        planTypeContainer.addView(title);
+
+        addVerticalSpace(planTypeContainer, 8);
+
+        LinearLayout moduleRow = new LinearLayout(this);
+        moduleRow.setOrientation(LinearLayout.HORIZONTAL);
+        moduleRow.setGravity(Gravity.CENTER_VERTICAL);
+        planTypeContainer.addView(moduleRow, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(42)
+        ));
+
+        moduleRow.addView(menuModuleButton("计划", MODULE_PLAN), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+        addHorizontalSpace(moduleRow, 6);
+        moduleRow.addView(menuModuleButton("一言", MODULE_QUICK_NOTE), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+        addHorizontalSpace(moduleRow, 6);
+        moduleRow.addView(menuModuleButton("随记", MODULE_MEMO), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+
+        if (MODULE_PLAN.equals(activeModule)) {
+            addVerticalSpace(planTypeContainer, 12);
+
+            TextView planLabel = new TextView(this);
+            planLabel.setText("计划类型");
+            planLabel.setTextColor(COLOR_MUTED);
+            planLabel.setTextSize(12);
+            planLabel.setTypeface(Typeface.DEFAULT_BOLD);
+            planTypeContainer.addView(planLabel);
+
+            addVerticalSpace(planTypeContainer, 8);
+
+            LinearLayout planRow = new LinearLayout(this);
+            planRow.setOrientation(LinearLayout.HORIZONTAL);
+            planRow.setGravity(Gravity.CENTER_VERTICAL);
+            planTypeContainer.addView(planRow, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(42)
+            ));
+            planRow.addView(menuPlanTypeButton("日计划", TYPE_DAILY), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+            addHorizontalSpace(planRow, 6);
+            planRow.addView(menuPlanTypeButton("月计划", TYPE_MONTHLY), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+            addHorizontalSpace(planRow, 6);
+            planRow.addView(menuPlanTypeButton("年计划", TYPE_YEARLY), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+        }
+
+        animateDropdownOpen(planTypeContainer);
+    }
+
+    private void renderBottomNavigation() {
+        if (bottomNavContainer == null || historyPlan != null) {
+            return;
+        }
+        bottomNavContainer.addView(bottomNavButton("计划", "日/月/年", MODULE_PLAN), new LinearLayout.LayoutParams(
                 0,
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 1f
         ));
-
-        addHorizontalSpace(planTypeContainer, 4);
-
-        planTypeContainer.addView(planTypeButton("月计划", TYPE_MONTHLY), new LinearLayout.LayoutParams(
+        addHorizontalSpace(bottomNavContainer, 4);
+        bottomNavContainer.addView(bottomNavButton("一言", "快记", MODULE_QUICK_NOTE), new LinearLayout.LayoutParams(
                 0,
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 1f
         ));
-
-        addHorizontalSpace(planTypeContainer, 4);
-
-        planTypeContainer.addView(planTypeButton("年计划", TYPE_YEARLY), new LinearLayout.LayoutParams(
+        addHorizontalSpace(bottomNavContainer, 4);
+        bottomNavContainer.addView(bottomNavButton("随记", "Markdown", MODULE_MEMO), new LinearLayout.LayoutParams(
                 0,
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 1f
         ));
     }
 
-    private Button moduleButton(String text, final String module) {
+    private Button menuModuleButton(String text, final String module) {
         boolean selected = activeModule.equals(module);
         Button button = new Button(this);
         button.setAllCaps(false);
@@ -457,22 +568,13 @@ public class MainActivity extends Activity {
         button.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                if (!activeModule.equals(module)) {
-                    activeModule = module;
-                    editingPlan = null;
-                    editingMemo = null;
-                    resetCreateForm();
-                    isCreatePanelVisible = false;
-                    renderNavigation();
-                    renderHeaderAndForm();
-                    renderPlans();
-                }
+                selectModule(module);
             }
         });
         return button;
     }
 
-    private Button planTypeButton(String text, final String type) {
+    private Button menuPlanTypeButton(String text, final String type) {
         boolean selected = activePlanType.equals(type);
         Button button = new Button(this);
         button.setAllCaps(false);
@@ -488,19 +590,144 @@ public class MainActivity extends Activity {
         button.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                if (!activePlanType.equals(type)) {
-                    activePlanType = type;
-                    editingPlan = null;
-                    editingMemo = null;
-                    resetCreateForm();
-                    isCreatePanelVisible = false;
-                    renderNavigation();
-                    renderHeaderAndForm();
-                    renderPlans();
-                }
+                selectPlanType(type);
             }
         });
         return button;
+    }
+
+    private Button bottomNavButton(String title, String subTitle, final String module) {
+        boolean selected = activeModule.equals(module);
+        Button button = new Button(this);
+        button.setAllCaps(false);
+        button.setText(title + "\n" + subTitle);
+        button.setTextSize(12);
+        button.setGravity(Gravity.CENTER);
+        button.setTypeface(Typeface.DEFAULT_BOLD);
+        button.setTextColor(selected ? Color.WHITE : COLOR_PRIMARY_DARK);
+        button.setBackground(rounded(
+                selected ? COLOR_PRIMARY : COLOR_CONTROL_BG,
+                selected ? COLOR_PRIMARY : COLOR_BORDER,
+                10
+        ));
+        button.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                selectModule(module);
+            }
+        });
+        return button;
+    }
+
+    private void toggleModuleMenu() {
+        if (historyPlan != null) {
+            return;
+        }
+        if (isModuleMenuExpanded) {
+            collapseModuleMenu();
+            return;
+        }
+        isModuleMenuExpanded = true;
+        renderNavigation();
+    }
+
+    private void collapseModuleMenu() {
+        isModuleMenuExpanded = false;
+        if (planTypeContainer != null && planTypeContainer.getVisibility() == View.VISIBLE) {
+            planTypeContainer.animate()
+                    .alpha(0f)
+                    .translationY(-dp(8))
+                    .setDuration(140)
+                    .setInterpolator(new DecelerateInterpolator())
+                    .withEndAction(new Runnable() {
+                        @Override
+                        public void run() {
+                            renderNavigation();
+                        }
+                    })
+                    .start();
+            return;
+        }
+        renderNavigation();
+    }
+
+    private void animateDropdownOpen(View view) {
+        view.setAlpha(0f);
+        view.setTranslationY(-dp(8));
+        view.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(180)
+                .setInterpolator(new DecelerateInterpolator())
+                .start();
+    }
+
+    private void selectModule(String module) {
+        if (activeModule.equals(module)) {
+            collapseModuleMenu();
+            return;
+        }
+        activeModule = module;
+        editingPlan = null;
+        editingMemo = null;
+        resetCreateForm();
+        isCreatePanelVisible = false;
+        isModuleMenuExpanded = false;
+        renderNavigation();
+        renderHeaderAndForm();
+        renderPlans();
+        animateListEntrance();
+    }
+
+    private void selectPlanType(String type) {
+        if (activePlanType.equals(type)) {
+            collapseModuleMenu();
+            return;
+        }
+        activePlanType = type;
+        editingPlan = null;
+        editingMemo = null;
+        resetCreateForm();
+        isCreatePanelVisible = false;
+        isModuleMenuExpanded = false;
+        renderNavigation();
+        renderHeaderAndForm();
+        renderPlans();
+        animateListEntrance();
+    }
+
+    private void animateListEntrance() {
+        if (listContainer == null) {
+            return;
+        }
+        listContainer.setAlpha(0f);
+        listContainer.setTranslationY(dp(10));
+        listContainer.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(180)
+                .setInterpolator(new DecelerateInterpolator())
+                .start();
+    }
+
+    private String moduleMarkText() {
+        if (MODULE_QUICK_NOTE.equals(activeModule)) {
+            return "言";
+        }
+        if (MODULE_MEMO.equals(activeModule)) {
+            return "记";
+        }
+        return "计";
+    }
+
+    private String currentModuleLabel() {
+        if (MODULE_QUICK_NOTE.equals(activeModule)) {
+            return "一言";
+        }
+        if (MODULE_MEMO.equals(activeModule)) {
+            return "随记";
+        }
+        return "计划 · " + activePlanName();
     }
 
     private void renderHeaderAndForm() {
@@ -1712,6 +1939,7 @@ public class MainActivity extends Activity {
         editingPlan = null;
         editingMemo = null;
         isCreatePanelVisible = false;
+        isModuleMenuExpanded = false;
         resetCreateForm();
         renderNavigation();
         renderHeaderAndForm();
