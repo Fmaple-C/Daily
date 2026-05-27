@@ -1662,7 +1662,7 @@ public class MainActivity extends Activity {
 
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(14), dp(12), dp(14), dp(14));
+        card.setPadding(dp(12), dp(10), dp(12), dp(11));
         int borderColor = checked ? COLOR_DONE_BORDER : (overdue ? COLOR_DANGER_BORDER : COLOR_BORDER);
         card.setBackground(rounded(COLOR_SURFACE, borderColor, 8));
 
@@ -1676,16 +1676,16 @@ public class MainActivity extends Activity {
         check.setGravity(Gravity.CENTER);
         check.setTextColor(Color.WHITE);
         check.setTypeface(Typeface.DEFAULT_BOLD);
-        check.setTextSize(18);
+        check.setTextSize(16);
         check.setBackground(circle(checked ? COLOR_SUCCESS : Color.TRANSPARENT, checked ? COLOR_SUCCESS : COLOR_BORDER));
-        topRow.addView(check, new LinearLayout.LayoutParams(dp(30), dp(30)));
+        topRow.addView(check, new LinearLayout.LayoutParams(dp(28), dp(28)));
 
         TextView name = new TextView(this);
         name.setText(plan.title);
         name.setTextColor(COLOR_TEXT);
-        name.setTextSize(18);
+        name.setTextSize(17);
         name.setTypeface(Typeface.DEFAULT_BOLD);
-        name.setPadding(dp(12), 0, dp(8), 0);
+        name.setPadding(dp(10), 0, dp(8), 0);
         topRow.addView(name, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         TextView badge = statusBadge(statusText(plan, active, checked, overdue), checked, overdue, active);
@@ -1694,7 +1694,7 @@ public class MainActivity extends Activity {
         TextView arrow = new TextView(this);
         arrow.setText(expanded ? "▲" : "▼");
         arrow.setTextColor(COLOR_PRIMARY_DARK);
-        arrow.setTextSize(16);
+        arrow.setTextSize(14);
         arrow.setTypeface(Typeface.DEFAULT_BOLD);
         arrow.setGravity(Gravity.CENTER);
         arrow.setBackground(rounded(COLOR_CONTROL_BG, COLOR_BORDER, 8));
@@ -1709,38 +1709,38 @@ public class MainActivity extends Activity {
                 renderPlans();
             }
         });
-        LinearLayout.LayoutParams arrowParams = new LinearLayout.LayoutParams(dp(34), dp(34));
-        arrowParams.setMargins(dp(8), 0, 0, 0);
+        LinearLayout.LayoutParams arrowParams = new LinearLayout.LayoutParams(dp(32), dp(32));
+        arrowParams.setMargins(dp(6), 0, 0, 0);
         topRow.addView(arrow, arrowParams);
 
         TextView schedule = new TextView(this);
         schedule.setText(scheduleText(plan));
         schedule.setTextColor(COLOR_MUTED);
-        schedule.setTextSize(14);
-        schedule.setPadding(dp(42), dp(8), 0, 0);
+        schedule.setTextSize(13);
+        schedule.setPadding(dp(38), dp(6), 0, 0);
         card.addView(schedule);
 
         if (!plan.note.trim().isEmpty()) {
             TextView note = new TextView(this);
             note.setText(plan.note);
             note.setTextColor(COLOR_TEXT);
-            note.setTextSize(14);
+            note.setTextSize(13);
             note.setLineSpacing(dp(2), 1.0f);
-            note.setPadding(dp(12), dp(10), dp(12), dp(10));
+            note.setPadding(dp(10), dp(8), dp(10), dp(8));
             note.setBackground(rounded(COLOR_FIELD_BG, COLOR_BORDER, 8));
             LinearLayout.LayoutParams noteParams = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
             );
-            noteParams.setMargins(0, dp(10), 0, 0);
+            noteParams.setMargins(0, dp(8), 0, 0);
             card.addView(note, noteParams);
         }
 
         TextView history = new TextView(this);
         history.setText(historyText(plan));
         history.setTextColor(COLOR_MUTED);
-        history.setTextSize(13);
-        history.setPadding(0, dp(10), 0, dp(10));
+        history.setTextSize(12);
+        history.setPadding(0, dp(7), 0, dp(8));
         card.addView(history);
 
         if (expanded) {
@@ -1748,13 +1748,8 @@ public class MainActivity extends Activity {
             addVerticalSpace(card, 10);
         }
 
-        LinearLayout primaryActions = new LinearLayout(this);
-        primaryActions.setOrientation(LinearLayout.HORIZONTAL);
-        primaryActions.setGravity(Gravity.CENTER_VERTICAL);
-        card.addView(primaryActions, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        ));
+        LinearLayout primaryActions = compactActionRow();
+        card.addView(primaryActions);
 
         Button checkButton = secondaryButton(checkButtonText(plan, checked, overdue, active));
         checkButton.setEnabled(active);
@@ -1768,9 +1763,9 @@ public class MainActivity extends Activity {
                 promptCheckInNote(plan);
             }
         });
-        primaryActions.addView(checkButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        primaryActions.addView(checkButton, new LinearLayout.LayoutParams(dp(92), dp(34)));
 
-        addHorizontalSpace(primaryActions, 8);
+        addHorizontalSpace(primaryActions, 6);
         Button editButton = secondaryButton("编辑");
         editButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -1778,9 +1773,9 @@ public class MainActivity extends Activity {
                 openEditPlan(plan);
             }
         });
-        primaryActions.addView(editButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        primaryActions.addView(editButton, new LinearLayout.LayoutParams(dp(58), dp(34)));
 
-        addHorizontalSpace(primaryActions, 8);
+        addHorizontalSpace(primaryActions, 6);
         Button historyButton = secondaryButton("历史");
         historyButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -1788,17 +1783,12 @@ public class MainActivity extends Activity {
                 openHistoryPage(plan);
             }
         });
-        primaryActions.addView(historyButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        primaryActions.addView(historyButton, new LinearLayout.LayoutParams(dp(58), dp(34)));
 
-        addVerticalSpace(card, 8);
+        addVerticalSpace(card, 6);
 
-        LinearLayout secondaryActions = new LinearLayout(this);
-        secondaryActions.setOrientation(LinearLayout.HORIZONTAL);
-        secondaryActions.setGravity(Gravity.CENTER_VERTICAL);
-        card.addView(secondaryActions, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        ));
+        LinearLayout secondaryActions = compactActionRow();
+        card.addView(secondaryActions);
 
         if (TYPE_DAILY.equals(plan.type)) {
             Button timeButton = secondaryButton("改时间");
@@ -1815,8 +1805,8 @@ public class MainActivity extends Activity {
                     });
                 }
             });
-            secondaryActions.addView(timeButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
-            addHorizontalSpace(secondaryActions, 8);
+            secondaryActions.addView(timeButton, new LinearLayout.LayoutParams(dp(68), dp(32)));
+            addHorizontalSpace(secondaryActions, 6);
         }
 
         Button deleteButton = secondaryButton("删除");
@@ -1827,9 +1817,17 @@ public class MainActivity extends Activity {
                 confirmDelete(plan);
             }
         });
-        secondaryActions.addView(deleteButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        secondaryActions.addView(deleteButton, new LinearLayout.LayoutParams(dp(58), dp(32)));
 
         return card;
+    }
+
+    private LinearLayout compactActionRow() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(38), 0, 0, 0);
+        return row;
     }
 
     private TextView statusBadge(String text, boolean checked, boolean overdue, boolean active) {
@@ -2411,7 +2409,7 @@ public class MainActivity extends Activity {
         Button button = new Button(this);
         button.setAllCaps(false);
         button.setText(text);
-        button.setTextSize(13);
+        button.setTextSize(12);
         button.setTextColor(COLOR_PRIMARY_DARK);
         button.setBackground(rounded(COLOR_CONTROL_BG, COLOR_BORDER, 8));
         return button;
