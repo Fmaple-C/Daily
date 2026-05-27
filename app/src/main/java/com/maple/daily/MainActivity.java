@@ -93,6 +93,7 @@ public class MainActivity extends Activity {
     private final List<QuickNote> quickNotes = new ArrayList<>();
     private final List<MemoNote> memoNotes = new ArrayList<>();
     private final Set<String> expandedPlanIds = new HashSet<>();
+    private final Set<String> expandedActionPlanIds = new HashSet<>();
     private final Handler midnightHandler = new Handler(Looper.getMainLooper());
     private final Runnable midnightRefresh = new Runnable() {
         @Override
@@ -1659,6 +1660,7 @@ public class MainActivity extends Activity {
         boolean checked = hasCheckInForCurrentPeriod(plan);
         boolean overdue = active && !checked && TYPE_DAILY.equals(plan.type) && nowMinutes() > plan.deadlineMinutes;
         boolean expanded = expandedPlanIds.contains(plan.id);
+        boolean actionsExpanded = expandedActionPlanIds.contains(plan.id);
 
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
@@ -1748,8 +1750,57 @@ public class MainActivity extends Activity {
             addVerticalSpace(card, 10);
         }
 
-        LinearLayout primaryActions = compactActionRow();
-        card.addView(primaryActions);
+        LinearLayout operationRow = compactActionRow();
+        card.addView(operationRow);
+
+        Button operationButton = secondaryButton(actionsExpanded ? "收起操作 ▲" : "操作 ▼");
+        operationButton.setTextColor(COLOR_PRIMARY_DARK);
+        operationButton.setBackground(rounded(COLOR_CONTROL_BG, COLOR_BORDER, 8));
+        operationButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (expandedActionPlanIds.contains(plan.id)) {
+                    expandedActionPlanIds.remove(plan.id);
+                } else {
+                    expandedActionPlanIds.add(plan.id);
+                }
+                renderPlans();
+            }
+        });
+        operationRow.addView(operationButton, new LinearLayout.LayoutParams(dp(104), dp(34)));
+
+        if (actionsExpanded) {
+            addVerticalSpace(card, 8);
+            View actionPanel = buildPlanActionPanel(plan, checked, overdue, active);
+            card.addView(actionPanel);
+            animateDropdownOpen(actionPanel);
+        }
+
+        return card;
+    }
+
+    private View buildPlanActionPanel(final PlanItem plan, boolean checked, boolean overdue, boolean active) {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(10), dp(9), dp(10), dp(10));
+        panel.setBackground(rounded(COLOR_FIELD_BG, COLOR_BORDER, 8));
+
+        TextView title = new TextView(this);
+        title.setText("快捷操作");
+        title.setTextColor(COLOR_MUTED);
+        title.setTextSize(12);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        panel.addView(title);
+
+        addVerticalSpace(panel, 8);
+
+        LinearLayout firstRow = new LinearLayout(this);
+        firstRow.setOrientation(LinearLayout.HORIZONTAL);
+        firstRow.setGravity(Gravity.CENTER_VERTICAL);
+        panel.addView(firstRow, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(36)
+        ));
 
         Button checkButton = secondaryButton(checkButtonText(plan, checked, overdue, active));
         checkButton.setEnabled(active);
@@ -1763,9 +1814,10 @@ public class MainActivity extends Activity {
                 promptCheckInNote(plan);
             }
         });
-        primaryActions.addView(checkButton, new LinearLayout.LayoutParams(dp(92), dp(34)));
+        firstRow.addView(checkButton, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1.4f));
 
-        addHorizontalSpace(primaryActions, 6);
+        addHorizontalSpace(firstRow, 6);
+
         Button editButton = secondaryButton("编辑");
         editButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -1773,9 +1825,10 @@ public class MainActivity extends Activity {
                 openEditPlan(plan);
             }
         });
-        primaryActions.addView(editButton, new LinearLayout.LayoutParams(dp(58), dp(34)));
+        firstRow.addView(editButton, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
-        addHorizontalSpace(primaryActions, 6);
+        addHorizontalSpace(firstRow, 6);
+
         Button historyButton = secondaryButton("历史");
         historyButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -1783,12 +1836,17 @@ public class MainActivity extends Activity {
                 openHistoryPage(plan);
             }
         });
-        primaryActions.addView(historyButton, new LinearLayout.LayoutParams(dp(58), dp(34)));
+        firstRow.addView(historyButton, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
-        addVerticalSpace(card, 6);
+        addVerticalSpace(panel, 7);
 
-        LinearLayout secondaryActions = compactActionRow();
-        card.addView(secondaryActions);
+        LinearLayout secondRow = new LinearLayout(this);
+        secondRow.setOrientation(LinearLayout.HORIZONTAL);
+        secondRow.setGravity(Gravity.CENTER_VERTICAL);
+        panel.addView(secondRow, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(34)
+        ));
 
         if (TYPE_DAILY.equals(plan.type)) {
             Button timeButton = secondaryButton("改时间");
@@ -1799,14 +1857,15 @@ public class MainActivity extends Activity {
                         @Override
                         public void onTimeSelected(int minutes) {
                             plan.deadlineMinutes = minutes;
+                            expandedActionPlanIds.remove(plan.id);
                             savePlans();
                             renderPlans();
                         }
                     });
                 }
             });
-            secondaryActions.addView(timeButton, new LinearLayout.LayoutParams(dp(68), dp(32)));
-            addHorizontalSpace(secondaryActions, 6);
+            secondRow.addView(timeButton, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+            addHorizontalSpace(secondRow, 6);
         }
 
         Button deleteButton = secondaryButton("删除");
@@ -1817,9 +1876,9 @@ public class MainActivity extends Activity {
                 confirmDelete(plan);
             }
         });
-        secondaryActions.addView(deleteButton, new LinearLayout.LayoutParams(dp(58), dp(32)));
+        secondRow.addView(deleteButton, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
-        return card;
+        return panel;
     }
 
     private LinearLayout compactActionRow() {
@@ -2278,6 +2337,7 @@ public class MainActivity extends Activity {
         checkIn.note = note;
         plan.checkIns.add(checkIn);
         expandedPlanIds.add(plan.id);
+        expandedActionPlanIds.remove(plan.id);
         savePlans();
         renderPlans();
     }
@@ -2289,6 +2349,7 @@ public class MainActivity extends Activity {
                 .setNegativeButton("取消", null)
                 .setPositiveButton("删除", (dialog, which) -> {
                     plans.remove(plan);
+                    expandedActionPlanIds.remove(plan.id);
                     if (historyPlan == plan) {
                         historyPlan = null;
                     }
