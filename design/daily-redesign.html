@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Daily 轻量化界面设计稿</title>
+  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+  <style>
+    :root {
+      --canvas: #f1f2ef;
+      --paper: #fbfbf9;
+      --surface: #ffffff;
+      --text: #292724;
+      --muted: #7c7770;
+      --faint: #aaa49c;
+      --line: #e8e6e1;
+      --orange: #e26b2d;
+      --orange-soft: #fff0e7;
+      --orange-deep: #a83f12;
+      --green: #62805e;
+      --green-soft: #eaf2e8;
+      --red: #bc543e;
+      --red-soft: #faece8;
+      --shadow: 0 24px 70px rgba(48, 44, 39, 0.13);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--canvas);
+      color: var(--text);
+      font-family: Inter, "SF Pro Display", "Noto Sans SC", system-ui, sans-serif;
+      letter-spacing: 0;
+    }
+
+    .board {
+      min-height: 100vh;
+      padding: 36px 44px 52px;
+    }
+
+    .board-head {
+      width: min(1036px, 100%);
+      margin: 0 auto 26px;
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .board-title {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.2;
+      font-weight: 720;
+    }
+
+    .board-copy {
+      margin: 8px 0 0;
+      max-width: 570px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .tokens {
+      display: flex;
+      gap: 8px;
+    }
+
+    .swatch {
+      width: 28px;
+      height: 28px;
+      border: 3px solid white;
+      border-radius: 50%;
+      box-shadow: 0 2px 10px rgba(40, 36, 30, .12);
+    }
+
+    .phones {
+      width: min(1036px, 100%);
+      margin: auto;
+      display: grid;
+      grid-template-columns: repeat(2, 390px);
+      justify-content: center;
+      gap: 72px;
+    }
+
+    .state-label {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 650;
+      text-align: center;
+    }
+
+    .phone {
+      position: relative;
+      width: 390px;
+      height: 844px;
+      overflow: hidden;
+      border: 8px solid #242321;
+      border-radius: 38px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .phone::before {
+      content: "";
+      position: absolute;
+      z-index: 8;
+      top: 9px;
+      left: 50%;
+      width: 86px;
+      height: 24px;
+      transform: translateX(-50%);
+      border-radius: 18px;
+      background: #242321;
+    }
+
+    .status-bar {
+      height: 46px;
+      padding: 14px 20px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #3b3834;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .status-icons {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .status-icons svg { width: 14px; height: 14px; stroke-width: 2; }
+
+    .screen {
+      height: calc(100% - 46px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .content {
+      flex: 1;
+      overflow: hidden;
+      padding: 12px 20px 0;
+    }
+
+    .top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .date-label {
+      margin: 0;
+      font-size: 29px;
+      line-height: 1.15;
+      font-weight: 760;
+    }
+
+    .date-subtitle {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .top-actions { display: flex; gap: 9px; }
+
+    .icon-button,
+    .add-button,
+    .more-button,
+    .sheet-close {
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 0;
+      cursor: default;
+    }
+
+    .icon-button {
+      width: 40px;
+      height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      background: var(--surface);
+      color: var(--muted);
+    }
+
+    .add-button {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--orange);
+      color: white;
+      box-shadow: 0 7px 18px rgba(226, 107, 45, .25);
+    }
+
+    .icon-button svg,
+    .add-button svg { width: 20px; height: 20px; stroke-width: 2; }
+
+    .week {
+      margin-top: 22px;
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+
+    .day {
+      height: 58px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      border-radius: 18px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .day strong { font-size: 15px; font-weight: 650; }
+    .day.active { background: var(--text); color: white; }
+    .day.has-task strong::after {
+      content: "";
+      display: block;
+      width: 4px;
+      height: 4px;
+      margin: 3px auto -7px;
+      border-radius: 50%;
+      background: var(--orange);
+    }
+    .day.active.has-task strong::after { background: #ff9a61; }
+
+    .section-head {
+      margin-top: 25px;
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+    }
+
+    .section-title { margin: 0; font-size: 20px; font-weight: 730; }
+    .progress-copy { color: var(--muted); font-size: 12px; }
+
+    .progress-track {
+      height: 3px;
+      margin-top: 11px;
+      overflow: hidden;
+      border-radius: 3px;
+      background: #ebe9e5;
+    }
+
+    .progress-fill { width: 34%; height: 100%; background: var(--orange); }
+
+    .tabs {
+      margin-top: 19px;
+      display: flex;
+      gap: 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .tab {
+      position: relative;
+      padding: 0 0 10px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .tab.active { color: var(--text); }
+    .tab.active::after {
+      content: "";
+      position: absolute;
+      right: 0;
+      bottom: -1px;
+      left: 0;
+      height: 2px;
+      background: var(--orange);
+    }
+
+    .plan-list { margin-top: 4px; }
+
+    .plan {
+      min-height: 84px;
+      display: grid;
+      grid-template-columns: 38px minmax(0, 1fr) 34px;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .check-ring {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border: 2px solid #d8d4ce;
+      border-radius: 50%;
+      color: white;
+    }
+
+    .check-ring.done { border-color: var(--green); background: var(--green); }
+    .check-ring.done svg { width: 16px; height: 16px; stroke-width: 3; }
+
+    .plan-title-row { display: flex; align-items: center; gap: 7px; }
+    .plan-title { margin: 0; font-size: 15px; font-weight: 680; }
+    .plan.done .plan-title { color: var(--muted); }
+
+    .small-badge {
+      padding: 3px 6px;
+      border-radius: 5px;
+      font-size: 10px;
+      font-weight: 650;
+    }
+
+    .small-badge.overdue { background: var(--red-soft); color: var(--red); }
+    .small-badge.month { background: #edf0f5; color: #59657a; }
+
+    .plan-meta {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .plan-meta.success { color: var(--green); }
+
+    .more-button {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--faint);
+    }
+
+    .more-button.active { background: var(--orange-soft); color: var(--orange-deep); }
+    .more-button svg { width: 19px; height: 19px; }
+
+    .daily-quote {
+      margin-top: 20px;
+      padding: 14px 15px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .quote-mark {
+      color: var(--orange);
+      font-family: Georgia, serif;
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .quote-text { color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+    .bottom-nav {
+      position: relative;
+      z-index: 5;
+      height: 72px;
+      flex: none;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      align-items: center;
+      border-top: 1px solid var(--line);
+      background: rgba(255, 255, 255, .96);
+    }
+
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      color: var(--faint);
+      font-size: 10px;
+    }
+
+    .nav-item svg { width: 20px; height: 20px; stroke-width: 1.9; }
+    .nav-item.active { color: var(--orange); font-weight: 650; }
+
+    .scrim {
+      position: absolute;
+      z-index: 10;
+      inset: 0;
+      background: rgba(34, 31, 28, .28);
+    }
+
+    .action-sheet {
+      position: absolute;
+      z-index: 12;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      padding: 10px 20px 28px;
+      border-radius: 22px 22px 0 0;
+      background: var(--surface);
+      box-shadow: 0 -18px 50px rgba(45, 40, 35, .13);
+    }
+
+    .sheet-handle {
+      width: 36px;
+      height: 4px;
+      margin: 0 auto 18px;
+      border-radius: 4px;
+      background: #ddd9d3;
+    }
+
+    .sheet-head { display: flex; align-items: center; justify-content: space-between; }
+    .sheet-kicker { margin: 0 0 4px; color: var(--muted); font-size: 11px; }
+    .sheet-title { margin: 0; font-size: 18px; font-weight: 720; }
+
+    .sheet-close {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: #f3f2ef;
+      color: var(--muted);
+    }
+
+    .primary-action {
+      width: 100%;
+      height: 48px;
+      margin-top: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--orange);
+      color: white;
+      font-size: 14px;
+      font-weight: 680;
+    }
+
+    .primary-action svg { width: 19px; height: 19px; }
+
+    .action-grid {
+      margin-top: 11px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .action-item {
+      height: 72px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfbfa;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .action-item svg { width: 19px; height: 19px; }
+    .action-item.danger { color: var(--red); }
+
+    .history-peek {
+      margin-top: 15px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+    }
+
+    .peek-head { display: flex; align-items: center; justify-content: space-between; }
+    .peek-title { font-size: 12px; font-weight: 650; }
+    .peek-link { color: var(--orange-deep); font-size: 11px; }
+
+    .peek-entry {
+      margin-top: 11px;
+      display: grid;
+      grid-template-columns: 8px 1fr auto;
+      align-items: center;
+      gap: 9px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .peek-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+
+    @media (max-width: 940px) {
+      .board { padding: 28px 18px 44px; }
+      .board-head { width: 390px; max-width: 100%; align-items: start; }
+      .tokens { display: none; }
+      .phones { grid-template-columns: 390px; gap: 34px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="board">
+    <header class="board-head">
+      <div>
+        <h1 class="board-title">Daily · 今日，是唯一主角</h1>
+        <p class="board-copy">轻量首页只回答三件事：今天是什么日子、有哪些计划、完成了多少。模块切换放到底部，低频操作收进面板，让用户每次打开都觉得清楚而安静。</p>
+      </div>
+      <div class="tokens" aria-label="主题色">
+        <span class="swatch" style="background:#e26b2d"></span>
+        <span class="swatch" style="background:#62805e"></span>
+        <span class="swatch" style="background:#292724"></span>
+        <span class="swatch" style="background:#fbfbf9"></span>
+      </div>
+    </header>
+
+    <section class="phones">
+      <div>
+        <p class="state-label">01 · 默认首页</p>
+        <article class="phone">
+          <div class="status-bar">
+            <span>09:41</span>
+            <span class="status-icons"><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-medium"></i></span>
+          </div>
+          <div class="screen">
+            <div class="content">
+              <div class="top-row">
+                <div>
+                  <h2 class="date-label">8月1日</h2>
+                  <p class="date-subtitle">周六 · 把今天过得具体一点</p>
+                </div>
+                <div class="top-actions">
+                  <button class="icon-button" aria-label="切换主题"><i data-lucide="sun"></i></button>
+                  <button class="add-button" aria-label="新建计划"><i data-lucide="plus"></i></button>
+                </div>
+              </div>
+
+              <div class="week">
+                <div class="day"><span>一</span><strong>27</strong></div>
+                <div class="day has-task"><span>二</span><strong>28</strong></div>
+                <div class="day"><span>三</span><strong>29</strong></div>
+                <div class="day has-task"><span>四</span><strong>30</strong></div>
+                <div class="day"><span>五</span><strong>31</strong></div>
+                <div class="day active has-task"><span>六</span><strong>1</strong></div>
+                <div class="day"><span>日</span><strong>2</strong></div>
+              </div>
+
+              <div class="section-head">
+                <h3 class="section-title">今天</h3>
+                <span class="progress-copy">1 / 3 已完成</span>
+              </div>
+              <div class="progress-track"><div class="progress-fill"></div></div>
+
+              <div class="tabs">
+                <span class="tab active">日计划</span>
+                <span class="tab">月计划</span>
+                <span class="tab">年计划</span>
+              </div>
+
+              <div class="plan-list">
+                <div class="plan">
+                  <div class="check-ring"></div>
+                  <div>
+                    <div class="plan-title-row"><h4 class="plan-title">刀心</h4><span class="small-badge overdue">已超时</span></div>
+                    <p class="plan-meta">每日 · 12:00 前</p>
+                  </div>
+                  <button class="more-button" aria-label="计划操作"><i data-lucide="ellipsis"></i></button>
+                </div>
+
+                <div class="plan done">
+                  <div class="check-ring done"><i data-lucide="check"></i></div>
+                  <div>
+                    <div class="plan-title-row"><h4 class="plan-title">每日记账</h4></div>
+                    <p class="plan-meta success">09:12 已打卡 · 今日支出 36 元</p>
+                  </div>
+                  <button class="more-button" aria-label="计划操作"><i data-lucide="ellipsis"></i></button>
+                </div>
+
+                <div class="plan">
+                  <div class="check-ring"></div>
+                  <div>
+                    <div class="plan-title-row"><h4 class="plan-title">阅读 30 分钟</h4></div>
+                    <p class="plan-meta">每日 · 22:00 前</p>
+                  </div>
+                  <button class="more-button" aria-label="计划操作"><i data-lucide="ellipsis"></i></button>
+                </div>
+              </div>
+
+              <div class="daily-quote">
+                <span class="quote-mark">“</span>
+                <span class="quote-text">做好今天值得做的事，明天自然会清晰一点。</span>
+              </div>
+            </div>
+
+            <nav class="bottom-nav">
+              <span class="nav-item active"><i data-lucide="circle-check-big"></i><span>计划</span></span>
+              <span class="nav-item"><i data-lucide="feather"></i><span>一言</span></span>
+              <span class="nav-item"><i data-lucide="notebook-pen"></i><span>随记</span></span>
+            </nav>
+          </div>
+        </article>
+      </div>
+
+      <div>
+        <p class="state-label">02 · 按需操作</p>
+        <article class="phone">
+          <div class="status-bar">
+            <span>09:41</span>
+            <span class="status-icons"><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-medium"></i></span>
+          </div>
+          <div class="screen">
+            <div class="content">
+              <div class="top-row">
+                <div>
+                  <h2 class="date-label">8月1日</h2>
+                  <p class="date-subtitle">周六 · 把今天过得具体一点</p>
+                </div>
+                <div class="top-actions">
+                  <button class="icon-button" aria-label="切换主题"><i data-lucide="sun"></i></button>
+                  <button class="add-button" aria-label="新建计划"><i data-lucide="plus"></i></button>
+                </div>
+              </div>
+
+              <div class="week">
+                <div class="day"><span>一</span><strong>27</strong></div>
+                <div class="day has-task"><span>二</span><strong>28</strong></div>
+                <div class="day"><span>三</span><strong>29</strong></div>
+                <div class="day has-task"><span>四</span><strong>30</strong></div>
+                <div class="day"><span>五</span><strong>31</strong></div>
+                <div class="day active has-task"><span>六</span><strong>1</strong></div>
+                <div class="day"><span>日</span><strong>2</strong></div>
+              </div>
+
+              <div class="section-head">
+                <h3 class="section-title">今天</h3>
+                <span class="progress-copy">1 / 3 已完成</span>
+              </div>
+              <div class="progress-track"><div class="progress-fill"></div></div>
+              <div class="tabs"><span class="tab active">日计划</span><span class="tab">月计划</span><span class="tab">年计划</span></div>
+              <div class="plan-list">
+                <div class="plan">
+                  <div class="check-ring"></div>
+                  <div><div class="plan-title-row"><h4 class="plan-title">刀心</h4><span class="small-badge overdue">已超时</span></div><p class="plan-meta">每日 · 12:00 前</p></div>
+                  <button class="more-button active" aria-label="计划操作"><i data-lucide="ellipsis"></i></button>
+                </div>
+                <div class="plan done">
+                  <div class="check-ring done"><i data-lucide="check"></i></div>
+                  <div><h4 class="plan-title">每日记账</h4><p class="plan-meta success">09:12 已打卡 · 今日支出 36 元</p></div>
+                  <button class="more-button" aria-label="计划操作"><i data-lucide="ellipsis"></i></button>
+                </div>
+                <div class="plan">
+                  <div class="check-ring"></div>
+                  <div><h4 class="plan-title">阅读 30 分钟</h4><p class="plan-meta">每日 · 22:00 前</p></div>
+                  <button class="more-button" aria-label="计划操作"><i data-lucide="ellipsis"></i></button>
+                </div>
+              </div>
+            </div>
+            <nav class="bottom-nav">
+              <span class="nav-item active"><i data-lucide="circle-check-big"></i><span>计划</span></span>
+              <span class="nav-item"><i data-lucide="feather"></i><span>一言</span></span>
+              <span class="nav-item"><i data-lucide="notebook-pen"></i><span>随记</span></span>
+            </nav>
+          </div>
+
+          <div class="scrim"></div>
+          <section class="action-sheet">
+            <div class="sheet-handle"></div>
+            <div class="sheet-head">
+              <div><p class="sheet-kicker">每日 · 12:00 前</p><h3 class="sheet-title">刀心</h3></div>
+              <button class="sheet-close" aria-label="关闭"><i data-lucide="x"></i></button>
+            </div>
+            <button class="primary-action"><i data-lucide="check"></i><span>补打卡</span></button>
+            <div class="action-grid">
+              <div class="action-item"><i data-lucide="pencil"></i><span>编辑</span></div>
+              <div class="action-item"><i data-lucide="history"></i><span>历史</span></div>
+              <div class="action-item"><i data-lucide="clock-3"></i><span>改时间</span></div>
+              <div class="action-item danger"><i data-lucide="trash-2"></i><span>删除</span></div>
+            </div>
+            <div class="history-peek">
+              <div class="peek-head"><span class="peek-title">最近打卡</span><span class="peek-link">查看全部</span></div>
+              <div class="peek-entry"><span class="peek-dot"></span><span>坚持完成今日练习</span><span>5月16日 11:36</span></div>
+              <div class="peek-entry"><span class="peek-dot"></span><span>第一次记录</span><span>5月14日 00:00</span></div>
+            </div>
+          </section>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <script>lucide.createIcons();</script>
+</body>
+</html>
