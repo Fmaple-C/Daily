@@ -6,6 +6,7 @@ import android.content.SharedPreferences;
 import com.maple.daily.model.CheckIn;
 import com.maple.daily.model.DailyData;
 import com.maple.daily.model.MemoNote;
+import com.maple.daily.model.PetState;
 import com.maple.daily.model.PlanItem;
 import com.maple.daily.model.QuickNote;
 import com.maple.daily.util.DateKeys;
@@ -24,7 +25,7 @@ import static com.maple.daily.model.PlanConstants.TYPE_MONTHLY;
 import static com.maple.daily.model.PlanConstants.TYPE_YEARLY;
 
 public class PlanRepository {
-    public static final int CURRENT_SCHEMA_VERSION = 5;
+    public static final int CURRENT_SCHEMA_VERSION = 6;
 
     private static final String PREFS_NAME = "daily_maple_prefs";
     private static final String DATA_KEY = "daily_data";
@@ -46,11 +47,11 @@ public class PlanRepository {
 
         String legacyRaw = preferences.getString(LEGACY_TODOS_KEY, null);
         if (legacyRaw != null && loadLegacyTodos(legacyRaw, data.plans)) {
-            saveData(data.plans, data.quickNotes, data.memoNotes);
+            saveData(data.plans, data.quickNotes, data.memoNotes, data.pet);
             return data;
         }
 
-        saveData(data.plans, data.quickNotes, data.memoNotes);
+        saveData(data.plans, data.quickNotes, data.memoNotes, data.pet);
         return data;
     }
 
@@ -60,14 +61,24 @@ public class PlanRepository {
 
     public void savePlans(List<PlanItem> plans) {
         DailyData data = loadData();
-        saveData(plans, data.quickNotes, data.memoNotes);
+        saveData(plans, data.quickNotes, data.memoNotes, data.pet);
     }
 
     public void saveData(List<PlanItem> plans, List<QuickNote> quickNotes) {
-        saveData(plans, quickNotes, loadData().memoNotes);
+        DailyData data = loadData();
+        saveData(plans, quickNotes, data.memoNotes, data.pet);
     }
 
     public void saveData(List<PlanItem> plans, List<QuickNote> quickNotes, List<MemoNote> memoNotes) {
+        saveData(plans, quickNotes, memoNotes, loadData().pet);
+    }
+
+    public void saveData(
+            List<PlanItem> plans,
+            List<QuickNote> quickNotes,
+            List<MemoNote> memoNotes,
+            PetState pet
+    ) {
         JSONArray array = new JSONArray();
         for (PlanItem plan : plans) {
             JSONObject object = new JSONObject();
@@ -93,6 +104,7 @@ public class PlanRepository {
             data.put("plans", array);
             data.put("quickNotes", quickNotesToJson(quickNotes));
             data.put("memoNotes", memoNotesToJson(memoNotes));
+            data.put("pet", petToJson(pet));
             preferences.edit()
                     .putString(DATA_KEY, data.toString())
                     .remove(LEGACY_TODOS_KEY)
@@ -119,8 +131,12 @@ public class PlanRepository {
                 if (memoNotes != null) {
                     parseMemoNotesArray(memoNotes, dailyData.memoNotes);
                 }
+                JSONObject pet = data.optJSONObject("pet");
+                if (pet != null) {
+                    dailyData.pet = parsePetState(pet);
+                }
                 if (schemaVersion < CURRENT_SCHEMA_VERSION) {
-                    saveData(dailyData.plans, dailyData.quickNotes, dailyData.memoNotes);
+                    saveData(dailyData.plans, dailyData.quickNotes, dailyData.memoNotes, dailyData.pet);
                 }
                 return true;
             }
@@ -128,7 +144,7 @@ public class PlanRepository {
             JSONArray oldTodos = data.optJSONArray("todos");
             if (oldTodos != null) {
                 parseLegacyTodosArray(oldTodos, dailyData.plans);
-                saveData(dailyData.plans, dailyData.quickNotes, dailyData.memoNotes);
+                saveData(dailyData.plans, dailyData.quickNotes, dailyData.memoNotes, dailyData.pet);
                 return true;
             }
             return false;
@@ -136,6 +152,7 @@ public class PlanRepository {
             dailyData.plans.clear();
             dailyData.quickNotes.clear();
             dailyData.memoNotes.clear();
+            dailyData.pet = new PetState();
             return false;
         }
     }
@@ -291,6 +308,25 @@ public class PlanRepository {
             array.put(object);
         }
         return array;
+    }
+
+    private PetState parsePetState(JSONObject object) {
+        PetState pet = new PetState();
+        pet.level = Math.min(999999, Math.max(1, object.optInt("level", 1)));
+        pet.growthDays = Math.min(999999, Math.max(0, object.optInt("growthDays", 0)));
+        pet.lastInteractionDate = object.optString("lastInteractionDate", "");
+        pet.lastInteractionAt = Math.max(0L, object.optLong("lastInteractionAt", 0L));
+        return pet;
+    }
+
+    private JSONObject petToJson(PetState petState) throws JSONException {
+        PetState pet = petState == null ? new PetState() : petState;
+        JSONObject object = new JSONObject();
+        object.put("level", Math.min(999999, Math.max(1, pet.level)));
+        object.put("growthDays", Math.min(999999, Math.max(0, pet.growthDays)));
+        object.put("lastInteractionDate", pet.lastInteractionDate == null ? "" : pet.lastInteractionDate);
+        object.put("lastInteractionAt", Math.max(0L, pet.lastInteractionAt));
+        return object;
     }
 
     private String defaultModeForType(String type) {

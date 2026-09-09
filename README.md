@@ -1,6 +1,6 @@
 # 枫叶计划
 
-一个本地离线的 Android 计划应用。当前按模块区分为计划、一言和随记：计划模块包含日计划、月计划、年计划；一言用于快速记录一句想法；随记用于保存支持轻量 Markdown 展示的长记录，并支持日夜主题切换。
+一个本地离线的 Android 计划应用。当前按模块区分为计划、一言和随记：计划模块包含日计划、月计划、年计划与每日成长宠物；一言用于快速记录一句想法；随记用于保存支持轻量 Markdown 展示的长记录，并支持日夜主题切换。
 
 ## 文档
 
@@ -16,11 +16,11 @@
 Debug APK 会生成在：
 
 ```text
-app\build\outputs\apk\debug\Daily-0.9.0-YYYYMMDD.apk
+app\build\outputs\apk\debug\Daily-0.10.0-YYYYMMDD.apk
 ```
 
 同时会归档一份到本地目录，方便保留旧版安装包：
 
 ```text
-release-apks\Daily-0.9.0-YYYYMMDD.apk
+release-apks\Daily-0.10.0-YYYYMMDD.apk
 ```

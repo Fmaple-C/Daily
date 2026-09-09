@@ -7,4 +7,5 @@ public class DailyData {
     public final List<PlanItem> plans = new ArrayList<>();
     public final List<QuickNote> quickNotes = new ArrayList<>();
     public final List<MemoNote> memoNotes = new ArrayList<>();
+    public PetState pet = new PetState();
 }

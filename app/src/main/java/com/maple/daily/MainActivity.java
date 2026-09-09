@@ -36,6 +36,7 @@ import android.widget.ScrollView;
 import android.widget.Space;
 import android.widget.TextView;
 import android.widget.TimePicker;
+import android.widget.Toast;
 
 import com.maple.daily.data.PlanRepository;
 import com.maple.daily.data.ThemePreferences;
@@ -43,8 +44,10 @@ import com.maple.daily.domain.PlanRules;
 import com.maple.daily.model.CheckIn;
 import com.maple.daily.model.DailyData;
 import com.maple.daily.model.MemoNote;
+import com.maple.daily.model.PetState;
 import com.maple.daily.model.PlanItem;
 import com.maple.daily.model.QuickNote;
+import com.maple.daily.ui.MaplePetView;
 import com.maple.daily.util.DateKeys;
 
 import java.util.ArrayList;
@@ -88,6 +91,7 @@ public class MainActivity extends Activity {
     private final List<PlanItem> plans = new ArrayList<>();
     private final List<QuickNote> quickNotes = new ArrayList<>();
     private final List<MemoNote> memoNotes = new ArrayList<>();
+    private PetState petState = new PetState();
     private final Handler midnightHandler = new Handler(Looper.getMainLooper());
     private final Runnable midnightRefresh = new Runnable() {
         @Override
@@ -102,6 +106,7 @@ public class MainActivity extends Activity {
     private PlanRepository repository;
     private ThemePreferences themePreferences;
     private LinearLayout railContainer;
+    private LinearLayout petContainer;
     private LinearLayout bottomNavContainer;
     private LinearLayout formContainer;
     private LinearLayout listContainer;
@@ -111,6 +116,7 @@ public class MainActivity extends Activity {
     private TextView screenSubtitle;
     private TextView summaryText;
     private TextView summaryCountText;
+    private MaplePetView petView;
     private View bottomNavDivider;
     private Button backButton;
     private Button createButton;
@@ -316,6 +322,14 @@ public class MainActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT
         ));
 
+        petContainer = new LinearLayout(this);
+        petContainer.setOrientation(LinearLayout.VERTICAL);
+        petContainer.setPadding(dp(20), dp(12), dp(20), 0);
+        root.addView(petContainer, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
         formContainer = new LinearLayout(this);
         formContainer.setOrientation(LinearLayout.VERTICAL);
         formContainer.setPadding(dp(20), dp(16), dp(20), 0);
@@ -405,6 +419,9 @@ public class MainActivity extends Activity {
         boolean showNavigation = historyPlan == null;
         boolean showPlanNavigation = showNavigation && MODULE_PLAN.equals(activeModule);
         railContainer.setVisibility(showPlanNavigation ? View.VISIBLE : View.GONE);
+        if (petContainer != null) {
+            petContainer.setVisibility(showPlanNavigation ? View.VISIBLE : View.GONE);
+        }
         if (bottomNavContainer != null) {
             bottomNavContainer.setVisibility(showNavigation ? View.VISIBLE : View.GONE);
         }
@@ -421,8 +438,120 @@ public class MainActivity extends Activity {
                 addVerticalSpace(railContainer, 20);
             }
             railContainer.addView(buildPlanTypeTabs());
+            renderPetCompanion();
         }
         renderBottomNavigation();
+    }
+
+    private void renderPetCompanion() {
+        if (petContainer == null) {
+            return;
+        }
+        petContainer.removeAllViews();
+        final boolean interactedToday = todayKey().equals(petState.lastInteractionDate);
+
+        LinearLayout companion = new LinearLayout(this);
+        companion.setOrientation(LinearLayout.HORIZONTAL);
+        companion.setGravity(Gravity.CENTER_VERTICAL);
+        companion.setPadding(dp(8), dp(5), dp(12), dp(5));
+        companion.setBackground(rounded(COLOR_SURFACE, COLOR_BORDER, 8));
+        companion.setContentDescription(interactedToday
+                ? "枫团今天已经成长，等级 " + petState.level
+                : "轻点枫团，完成今天的成长互动");
+        companion.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                interactWithPet();
+            }
+        });
+
+        petView = new MaplePetView(this);
+        petView.setLevel(petState.level);
+        petView.setPalette(COLOR_PRIMARY, COLOR_PRIMARY_DARK, COLOR_TEXT, COLOR_SURFACE, COLOR_MUTED);
+        companion.addView(petView, new LinearLayout.LayoutParams(dp(78), dp(72)));
+
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setGravity(Gravity.CENTER_VERTICAL);
+        copy.setPadding(dp(6), 0, dp(8), 0);
+        companion.addView(copy, new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                1f
+        ));
+
+        TextView title = new TextView(this);
+        title.setText("枫团  Lv." + petState.level);
+        title.setTextColor(COLOR_TEXT);
+        title.setTextSize(15);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        copy.addView(title);
+
+        TextView status = new TextView(this);
+        status.setText(interactedToday
+                ? petStageName() + " · 今日已陪伴"
+                : petStageName() + " · 轻点陪它长大");
+        status.setTextColor(COLOR_MUTED);
+        status.setTextSize(12);
+        status.setPadding(0, dp(4), 0, 0);
+        copy.addView(status);
+
+        TextView growth = new TextView(this);
+        growth.setText(petState.growthDays == 0
+                ? "从今天开始一起成长"
+                : "累计陪伴 " + petState.growthDays + " 天");
+        growth.setTextColor(COLOR_HINT);
+        growth.setTextSize(10);
+        growth.setPadding(0, dp(3), 0, 0);
+        copy.addView(growth);
+
+        TextView action = new TextView(this);
+        action.setText(interactedToday ? "✓" : "+1");
+        action.setTextColor(interactedToday ? COLOR_SUCCESS : COLOR_PRIMARY);
+        action.setTextSize(interactedToday ? 20 : 14);
+        action.setTypeface(Typeface.DEFAULT_BOLD);
+        action.setGravity(Gravity.CENTER);
+        action.setBackground(circle(COLOR_CONTROL_BG, interactedToday ? COLOR_SUCCESS : COLOR_PRIMARY));
+        companion.addView(action, new LinearLayout.LayoutParams(dp(38), dp(38)));
+
+        petContainer.addView(companion, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(82)
+        ));
+    }
+
+    private void interactWithPet() {
+        if (todayKey().equals(petState.lastInteractionDate)) {
+            if (petView != null) {
+                petView.celebrate();
+            }
+            Toast.makeText(this, "枫团今天已经成长过啦，明天再来", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        petState.level = Math.min(999999, Math.max(1, petState.level) + 1);
+        petState.growthDays = Math.min(999999, Math.max(0, petState.growthDays) + 1);
+        petState.lastInteractionDate = todayKey();
+        petState.lastInteractionAt = System.currentTimeMillis();
+        savePlans();
+        renderPetCompanion();
+        if (petView != null) {
+            petView.celebrate();
+        }
+        Toast.makeText(this, "枫团升到 Lv." + petState.level, Toast.LENGTH_SHORT).show();
+    }
+
+    private String petStageName() {
+        if (petState.level >= 15) {
+            return "枫冠形态";
+        }
+        if (petState.level >= 8) {
+            return "围巾形态";
+        }
+        if (petState.level >= 4) {
+            return "伙伴形态";
+        }
+        return "幼芽形态";
     }
 
     private View buildWeekStrip() {
@@ -2549,10 +2678,11 @@ public class MainActivity extends Activity {
         plans.addAll(data.plans);
         quickNotes.addAll(data.quickNotes);
         memoNotes.addAll(data.memoNotes);
+        petState = data.pet == null ? new PetState() : data.pet;
     }
 
     private void savePlans() {
-        repository.saveData(plans, quickNotes, memoNotes);
+        repository.saveData(plans, quickNotes, memoNotes, petState);
     }
 
     private void scheduleMidnightRefresh() {
